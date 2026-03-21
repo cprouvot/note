@@ -1,48 +1,50 @@
-# 🧠 Local Mind Mapping & To-Do Studio
+# 🧠 Fullstack Mind Mapping & To-Do Studio
 
-Une application locale puissante inspirée de Miro, combinant un canevas de Mind Mapping infini et une To-Do List intelligente. Ce projet est conçu pour la gestion de projets visuelle, la structuration d'idées, et le suivi d'objectifs, avec une garantie de confidentialité totale (100% hors-ligne).
+Une application puissante combinant un canevas de Mind Mapping infini et une To-Do List intelligente. Ce projet est conçu pour la gestion de projets visuelle, la structuration d'idées, et le suivi d'objectifs, avec un système de compte utilisateur persistant et une architecture Dockerisée pour faciliter son déploiement sur VPS (OVH ou autre).
 
 ## ✨ Fonctionnalités Principales
 
 ### 🗺️ Mind Mapping Intéractif (Canvas)
 *   **Canevas Infini** : Déplacez-vous librement et zoomez (Pan & Zoom) sans limites.
-*   **Nœuds Personnalisés** : 
-    *   **Idées structurées** : Connectables entre elles via flèches dynamiques.
-    *   **Post-its / Rectangles** : Zones de texte flottantes, de tailles personnalisables (`NodeResizeControl`) et de couleurs de fond modifiables.
-    *   **Texte Libre** : Titres et annotations transparentes.
-*   **Contrôles Avancés** : 
-    *   Rangement automatique (Alignement en arbre) des nœuds enfants au clic droit.
-    *   Gestion du premier plan / arrière plan (z-index) via menu contextuel.
-    *   Mouvement synchronisé : le déplacement d'un nœud parent entraîne organiquement tous ses enfants.
-*   **Raccourcis Clavier** : Touche `Tab` pour ajouter instantanément de nouvelles idées enfants connectées à la volée.
-*   **Gestion Multi-Cartes** : Système d'onglets (Tabs) pour créer et basculer d'un projet de mapping à un autre en 1 clic.
+*   **Contrôles Avancés** : Rangement automatique en arbre, gestion de la profondeur (z-index), et liens dynamiques synchronisés.
+*   **Gestion Multi-Cartes** : Onglets (Tabs) pour basculer de projets en 1 clic. Conservées en temps réel en base de données.
 
 ### ✅ To-Do List Intelligente
-*   **Catégories Flexibles** : Création et suppression de vos propres "colonnes" de tâches (ex: Urgent, A faire, En attente...).
-*   **Drag & Drop** : Réorganisez vos tâches ou glissez-les d'une catégorie à une autre de manière fluide grâce au moteur `dnd-kit`.
-*   **Sous-tâches (Indentation)** : Touches `Tab` et `Maj+Tab` pour décaler vos tâches sur le côté et créer des hiérarchies visuelles très propres.
-*   **Ergonomie Rapide** : Touche `Entrée` pour enchainer la création de nouvelles tâches, bouton inline `+ Ajouter une tâche`, et actions groupées (Exporter le texte, vider complètement la catégorie).
+*   **Catégories Flexibles** : Création et gestion par Drag & Drop via `dnd-kit`.
+*   **Sous-tâches (Indentation)** : Touches `Tab` et `Maj+Tab` pour créer des hiérarchies claires.
+*   **Synchronisation Cloud** : Les requêtes asynchrones enregistrent chaque action directement derrière le pare-feu.
 
-### 🔒 Privacy-First & Sauvegarde Automatique
-*   **Architecture Locale (Local Storage)** : Absolument toutes les données (coordonnées des nœuds, dimensions, textes modifiés, avancement des tâches, catégories) sont sauvegardées en continu et **uniquement** dans le stockage de votre navigateur (`localStorage`). Aucune base de donnée, aucune donnée ne quitte votre appareil.
+### 🔒 Sécurité et Comptes (Nouveau !)
+*   **Sessions Multi-Appareils** : Authentification par email/mot de passe sécurisée (bcrypt) vérifiée avec des JSON Web Tokens (JWT).
+*   **Tableau de bord Administrateur** : Un panneau interne permet aux administrateurs de modérer le site et de supprimer/gouverner des utilisateurs en base.
 
 ## 🛠️ Stack Technique
 
-*   **React 18** (Vite.js)
-*   **React Flow** : Moteur de rendu du canevas nodal.
-*   **@dnd-kit** : Bibliothèque de Drag & Drop moderne pour les listes.
-*   **Lucide React** : Librairie d'icônes SVG.
-*   **Vanilla CSS** : Variables CSS (`--primary`, ...) pour un design system propre 100% natif.
+*   **Frontend** : React 18 (Vite.js), React Flow, dnd-kit, Lucide React, CSS Vanilla.
+*   **Backend** : Node.js, Express.js.
+*   **Base de Données** : PostgreSQL + Prisma ORM.
+*   **Déploiement** : Docker et Docker Compose.
 
-## 🚀 Installation & Lancement local
+---
+
+## 🚀 Installation & Déploiement (Serveur / VPS / Local)
+
+Le projet utilise **Docker Compose** pour orchestrer dynamiquement 3 conteneurs :
+1. La Base de Données `PostgreSQL`
+2. L'API métier `Node.js`
+3. L'Interface Web `React Vite`
+
+**Pré-requis** : Avoir Docker installé (ou OrbStack sur macOS).
 
 1. Clonez ce dépôt.
-2. Installez les dépendances :
+2. Démarrez conjointement l'infrastructure entière en arrière-plan :
    ```bash
-   npm install
+   docker compose up --build -d
    ```
-3. Lancez le serveur de développement :
+3. Poussez la structure relationnelle de Prisma dans la base de données fraichement créée :
    ```bash
-   npm run dev
+   docker exec miro-backend npx prisma db push
    ```
-4. Ouvrez votre navigateur web à l'adresse `http://localhost:5173/`.
+4. 🎉 **C'est prêt !** Accédez à l'application web via votre navigateur sur `http://localhost:5173/`.
+
+> *Tips : Pour arrêter silencieusement le projet, tapez simplement `docker compose down`.*

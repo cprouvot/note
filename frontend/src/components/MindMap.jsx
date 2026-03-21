@@ -15,6 +15,7 @@ import 'reactflow/dist/style.css';
 import CustomNode from './CustomNode';
 import RectangleNode from './RectangleNode';
 import TextNode from './TextNode';
+import { api } from '../api';
 import './MindMap.css';
 
 const nodeTypes = {
@@ -28,27 +29,30 @@ const defaultNodes = [
 ];
 const defaultEdges = [];
 
-const BOARDS_STORAGE_KEY = 'miro_clone_boards_state';
-
 function MindMapCanvas({ activeBoardId, boards, setBoards }) {
   const { getNodes, getEdges } = useReactFlow();
 
-  const activeBoard = boards.find(b => b.id === activeBoardId) || boards[0];
+  const activeBoard = boards.find(b => b.id === activeBoardId) || boards[0] || {};
   const [nodes, setNodes] = useState(activeBoard.nodes || defaultNodes);
   const [edges, setEdges] = useState(activeBoard.edges || defaultEdges);
   const [menu, setMenu] = useState(null);
   
   const dragCache = useRef(null);
 
-  useEffect(() => {
-    setNodes(activeBoard.nodes || []);
-    setEdges(activeBoard.edges || []);
-    setMenu(null);
-  }, [activeBoardId]);
+  // Unnecessary useEffect loop removed - Canvas mounts and unmounts cleanly with ReactFlowProvider keys.
 
+  // Debounced Save to Backend
   useEffect(() => {
-    setBoards(boards.map(b => b.id === activeBoardId ? { ...b, nodes, edges } : b));
-  }, [nodes, edges]);
+    setBoards(prev => prev.map(b => b.id === activeBoardId ? { ...b, nodes, edges } : b));
+    
+    if (activeBoardId) {
+       const timer = setTimeout(() => {
+          // Only push the updated nodes and edges, Prisma will safely ignore undefined fields (name/viewport)
+          api.updateBoard(activeBoardId, { nodes, edges }).catch(console.error);
+       }, 1500); // Debouncer
+       return () => clearTimeout(timer);
+    }
+  }, [nodes, edges, activeBoardId]);
 
   const onNodesChange = useCallback(
     (changes) => setNodes((nds) => applyNodeChanges(changes, nds)),
@@ -129,10 +133,6 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
     };
     if (type === 'rectangle') newNode.data.color = '#fef08a';
     setNodes((nds) => [...nds, newNode]);
-  };
-
-  const onMoveEnd = (event, viewport) => {
-    setBoards(boards.map(b => b.id === activeBoardId ? { ...b, viewport } : b));
   };
 
   const onNodeContextMenu = useCallback(
@@ -234,7 +234,6 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
-        onMoveEnd={onMoveEnd}
         onNodeDragStart={onNodeDragStart}
         onNodeDrag={onNodeDrag}
         onNodeDragStop={onNodeDragStop}
@@ -289,41 +288,51 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
 }
 
 export default function MindMap() {
-  const [boards, setBoards] = useState(() => {
-    const saved = localStorage.getItem(BOARDS_STORAGE_KEY);
-    if (saved) {
-      try { return JSON.parse(saved); } catch(e) {}
-    }
-    const oldSaved = localStorage.getItem('miro_clone_mindmap_state');
-    if (oldSaved) {
-        try { 
-            const parsed = JSON.parse(oldSaved);
-            return [{ id: 'board_1', name: 'Ancienne Carte', nodes: parsed.nodes, edges: parsed.edges, viewport: {x:0, y:0, zoom:1} }];
-        } catch(e) {}
-    }
-
-    return [{ id: 'board_1', name: 'Carte Principale', nodes: defaultNodes, edges: defaultEdges, viewport: {x:0, y:0, zoom:1} }];
-  });
-  
-  const [activeBoardId, setActiveBoardId] = useState(boards[0]?.id);
+  const [boards, setBoards] = useState([]);
+  const [activeBoardId, setActiveBoardId] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    localStorage.setItem(BOARDS_STORAGE_KEY, JSON.stringify(boards));
-  }, [boards]);
+    const loadData = async () => {
+      try {
+        const fetchedBoards = await api.getBoards();
+        if (fetchedBoards.length === 0) {
+          const newBoard = await api.createBoard({ 
+            name: 'Carte Principale', 
+            nodes: defaultNodes, 
+            edges: defaultEdges, 
+            viewport: {x:0, y:0, zoom:1} 
+          });
+          setBoards([newBoard]);
+          setActiveBoardId(newBoard.id);
+        } else {
+          setBoards(fetchedBoards);
+          setActiveBoardId(fetchedBoards[0].id);
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, []);
 
-  const addBoard = () => {
-    const newBoard = {
-      id: `board_${Date.now()}`,
+  const addBoard = async () => {
+    const newBoard = await api.createBoard({ 
       name: `Nouvelle Carte ${boards.length + 1}`,
       nodes: [],
       edges: [],
-      viewport: { x: 0, y: 0, zoom: 1 }
-    };
-    setBoards([...boards, newBoard]);
-    setActiveBoardId(newBoard.id);
+      viewport: {x:0, y:0, zoom:1}
+    }).catch(console.error);
+    
+    if (newBoard) {
+      setBoards([...boards, newBoard]);
+      setActiveBoardId(newBoard.id);
+    }
   };
 
-  const removeBoard = (id, e) => {
+  const removeBoard = async (id, e) => {
     e.stopPropagation();
     if(boards.length === 1) {
       alert("Impossible de supprimer la dernière carte.");
@@ -333,12 +342,21 @@ export default function MindMap() {
       const newBoards = boards.filter(b => b.id !== id);
       setBoards(newBoards);
       if (activeBoardId === id) setActiveBoardId(newBoards[0].id);
+      await api.deleteBoard(id).catch(console.error);
     }
   };
 
-  const renameBoard = (id, newName) => {
+  const renameBoard = async (id, newName) => {
     setBoards(boards.map(b => b.id === id ? { ...b, name: newName } : b));
+    const board = boards.find(b => b.id === id);
+    if(board) {
+      await api.updateBoard(id, { ...board, name: newName }).catch(console.error);
+    }
   };
+
+  if (loading || !activeBoardId) {
+    return <div style={{ display:'flex', alignItems:'center', justifyContent:'center', height:'100%', color:'#64748b' }}>Chargement de l'espace de travail...</div>;
+  }
 
   return (
     <div className="mindmap-container-wrapper">

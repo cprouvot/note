@@ -1,0 +1,108 @@
+.admin-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(15, 23, 42, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+  font-family: inherit;
+}
+
+.admin-modal {
+  background: white;
+  width: 90%;
+  max-width: 900px;
+  max-height: 80vh;
+  overflow-y: auto;
+  border-radius: 12px;
+  padding: 32px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.admin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  border-bottom: 1px solid #e2e8f0;
+  padding-bottom: 16px;
+}
+
+.admin-header h2 {
+  margin: 0;
+  font-size: 22px;
+  color: #0f172a;
+}
+
+.close-admin-btn {
+  background: none; 
+  border: none; 
+  font-size: 32px; 
+  line-height: 1;
+  cursor: pointer; 
+  color: #94a3b8;
+  transition: color 0.2s;
+}
+
+.close-admin-btn:hover {
+  color: #ef4444;
+}
+
+.admin-table {
+  width: 100%; 
+  border-collapse: collapse; 
+  text-align: left;
+  font-size: 14px;
+}
+
+.admin-table th, .admin-table td {
+  padding: 16px; 
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.admin-table th {
+  background: #f8fafc; 
+  color: #475569; 
+  font-weight: 600;
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 0.5px;
+}
+
+.admin-table tr:hover {
+  background-color: #f8fafc;
+}
+
+.role-selector {
+  padding: 6px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  font-size: 13px;
+  background-color: white;
+  outline: none;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.role-selector:focus {
+  border-color: #3b82f6;
+}
+
+.delete-user-btn {
+  background: transparent; 
+  color: #ef4444; 
+  border: 1px solid #fca5a5; 
+  padding: 6px 12px; 
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 4px; 
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.delete-user-btn:hover { 
+  background: #fef2f2; 
+  border-color: #ef4444;
+}

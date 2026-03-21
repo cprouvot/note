@@ -18,7 +18,7 @@ export default function CustomNode({ id, data, selected }) {
     setNodes((nds) =>
       nds.map((node) => {
         if (node.id === id) {
-          node.data = { ...node.data, ...newData };
+          return { ...node, data: { ...node.data, ...newData } };
         }
         return node;
       })
@@ -42,17 +42,22 @@ export default function CustomNode({ id, data, selected }) {
     updateNodeData({ textColor: val });
   };
 
-  const onAddChild = (evt) => {
+  const onAddChild = (evt, direction = 'right') => {
     if(evt) evt.stopPropagation();
     const nodes = getNodes();
     const parentNode = nodes.find(n => n.id === id);
     if (!parentNode) return;
 
     const newNodeId = `node_${Math.random().toString(36).substr(2, 9)}`;
+    const isLeft = direction === 'left';
+    
     const newNode = {
       id: newNodeId,
       type: 'custom',
-      position: { x: parentNode.position.x + 280, y: parentNode.position.y },
+      position: { 
+        x: parentNode.position.x + (isLeft ? -280 : 280), 
+        y: parentNode.position.y 
+      },
       data: { label: 'Nouvelle idée' },
     };
 
@@ -60,6 +65,8 @@ export default function CustomNode({ id, data, selected }) {
       id: `edge_${id}_${newNodeId}`,
       source: id,
       target: newNodeId,
+      sourceHandle: isLeft ? 'source-left' : null,
+      targetHandle: isLeft ? 'target-right' : null,
       animated: true,
       style: { stroke: '#94a3b8', strokeWidth: 2 }
     };
@@ -75,7 +82,7 @@ export default function CustomNode({ id, data, selected }) {
     const handleGlobalKeyDown = (evt) => {
       if (evt.key === 'Tab' && selected) {
         evt.preventDefault();
-        onAddChild(evt);
+        onAddChild(evt, evt.shiftKey ? 'left' : 'right');
         if (isEditing) {
            onBlur();
         }
@@ -146,7 +153,9 @@ export default function CustomNode({ id, data, selected }) {
         </div>
       )}
 
+      {/* PRIMARY HANDLES (These must render FIRST so ReactFlow uses them as default connection points when id is null) */}
       <Handle type="target" position={Position.Left} style={{ background: '#94a3b8', width: 8, height: 8 }} />
+      <Handle type="source" position={Position.Right} style={{ background: '#94a3b8', width: 8, height: 8 }} />
       
       {isEditing ? (
         <input
@@ -172,32 +181,60 @@ export default function CustomNode({ id, data, selected }) {
       )}
 
       {selected && (
-        <button 
-          onClick={onAddChild}
-          title="Ajouter une idée (Raccourci: Tab)"
-          style={{
-            position: 'absolute',
-            right: '-16px',
-            top: '50%',
-            transform: 'translateY(-50%)',
-            background: 'var(--primary)',
-            color: 'white',
-            border: 'none',
-            borderRadius: '50%',
-            width: '24px',
-            height: '24px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            cursor: 'pointer',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
-            zIndex: 10
-          }}>
-          <Plus size={14} />
-        </button>
+        <>
+          <button 
+            onClick={(e) => onAddChild(e, 'left')}
+            title="Ajouter une idée à gauche (Raccourci: Shift+Tab)"
+            style={{
+              position: 'absolute',
+              left: '-16px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              background: 'var(--primary)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '50%',
+              width: '24px',
+              height: '24px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+              zIndex: 10
+            }}>
+            <Plus size={14} />
+          </button>
+          
+          <button 
+            onClick={(e) => onAddChild(e, 'right')}
+            title="Ajouter une idée à droite (Raccourci: Tab)"
+            style={{
+              position: 'absolute',
+              right: '-16px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              background: 'var(--primary)',
+              color: 'white',
+              border: 'none',
+              borderRadius: '50%',
+              width: '24px',
+              height: '24px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+              zIndex: 10
+            }}>
+            <Plus size={14} />
+          </button>
+        </>
       )}
       
-      <Handle type="source" position={Position.Right} style={{ background: '#94a3b8', width: 8, height: 8 }} />
+      {/* SECONDARY HANDLES (Hidden anchors used exclusively for bi-directional Left children branching) */}
+      <Handle type="source" id="source-left" position={Position.Left} style={{ opacity: 0, width: 8, height: 8, top: '60%' }} />
+      <Handle type="target" id="target-right" position={Position.Right} style={{ opacity: 0, width: 8, height: 8, top: '60%' }} />
     </div>
   );
 }

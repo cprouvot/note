@@ -3,17 +3,10 @@ import { Plus, Trash2, GripVertical, Copy, Check, Eraser } from 'lucide-react';
 import { DndContext, closestCorners, KeyboardSensor, PointerSensor, useSensor, useSensors, useDroppable } from '@dnd-kit/core';
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { api } from '../api';
 import './TodoSidebar.css';
 
-const TODO_STORAGE_KEY = 'miro_clone_todo_state';
 const CATEGORY_STORAGE_KEY = 'miro_clone_categories_state';
-
-const defaultTasks = [
-  { id: '1', text: 'Commerce Teragir - 27/03', category: 'Akabia', done: false, indentLevel: 0 },
-  { id: '2', text: 'corsica-aventure.com', category: 'Akabia', done: false, indentLevel: 1 },
-  { id: '3', text: 'Famileo', category: 'Perso', done: false, indentLevel: 0 },
-];
-
 const defaultCategories = ['Akabia', 'Perso', 'En attente', 'Done'];
 
 function DroppableEmptyCategory({ categoryId }) {
@@ -74,94 +67,111 @@ export default function TodoSidebar() {
     return defaultCategories;
   });
 
-  const [tasks, setTasks] = useState(() => {
-    const saved = localStorage.getItem(TODO_STORAGE_KEY);
-    if (saved) {
-      try { return JSON.parse(saved); } catch(e) {}
-    }
-    return defaultTasks;
-  });
-
+  const [tasks, setTasks] = useState([]);
   const [newCategoryText, setNewCategoryText] = useState('');
   const [copiedCategory, setCopiedCategory] = useState(null);
 
   useEffect(() => {
-    localStorage.setItem(TODO_STORAGE_KEY, JSON.stringify(tasks));
-  }, [tasks]);
+    const fetchTasks = async () => {
+      try {
+        const data = await api.getTasks();
+        setTasks(data);
+      } catch (err) {
+        console.error("Failed to load tasks", err);
+      }
+    };
+    fetchTasks();
+  }, []);
 
   useEffect(() => {
     localStorage.setItem(CATEGORY_STORAGE_KEY, JSON.stringify(categories));
   }, [categories]);
 
-  const toggleTask = (id) => {
-    setTasks(tasks.map((t) => t.id === id ? { ...t, done: !t.done } : t));
+  const toggleTask = async (id) => {
+    const task = tasks.find(t => t.id === id);
+    const updatedStatus = !task.done;
+    setTasks(tasks.map((t) => t.id === id ? { ...t, done: updatedStatus } : t));
+    await api.updateTask(id, { ...task, done: updatedStatus }).catch(console.error);
   };
 
-  const removeTask = (id) => {
+  const removeTask = async (id) => {
     setTasks(tasks.filter(t => t.id !== id));
+    await api.deleteTask(id).catch(console.error);
   };
 
-  const updateTaskText = (id, text) => {
+  const updateTaskText = async (id, text) => {
     setTasks(tasks.map((t) => t.id === id ? { ...t, text } : t));
+    const task = tasks.find(t => t.id === id);
+    if (task) await api.updateTask(id, { ...task, text }).catch(console.error);
   };
 
-  const handleTaskKeyDown = (e, id) => {
+  const handleTaskKeyDown = async (e, id) => {
     if (e.key === 'Tab') {
       e.preventDefault();
+      
+      let updatedIndent = 0;
       setTasks(currentTasks => currentTasks.map(t => {
         if (t.id === id) {
           if (e.shiftKey) {
-            return { ...t, indentLevel: Math.max(0, (t.indentLevel || 0) - 1) };
+            updatedIndent = Math.max(0, (t.indentLevel || 0) - 1);
+            return { ...t, indentLevel: updatedIndent };
           } else {
-            return { ...t, indentLevel: Math.min(5, (t.indentLevel || 0) + 1) };
+            updatedIndent = Math.min(5, (t.indentLevel || 0) + 1);
+            return { ...t, indentLevel: updatedIndent };
           }
         }
         return t;
       }));
+
+      const task = tasks.find(t => t.id === id);
+      if (task) await api.updateTask(id, { ...task, indentLevel: updatedIndent }).catch(console.error);
+
     } else if (e.key === 'Enter') {
       e.preventDefault();
+      const currentTask = tasks.find(t => t.id === id);
+      if (!currentTask) return;
+      
+      const newTaskData = {
+        text: '',
+        category: currentTask.category,
+        done: false,
+        indentLevel: currentTask.indentLevel || 0,
+        orderIndex: tasks.length
+      };
+
+      const savedTask = await api.createTask(newTaskData).catch(console.error);
+      if(!savedTask) return;
+
       setTasks(currentTasks => {
         const currentIndex = currentTasks.findIndex(t => t.id === id);
-        if (currentIndex === -1) return currentTasks;
-        
-        const currentTask = currentTasks[currentIndex];
-        const newId = Date.now().toString();
-        const newTask = {
-          id: newId,
-          text: '',
-          category: currentTask.category,
-          done: false,
-          indentLevel: currentTask.indentLevel || 0
-        };
-        
         const newTasks = [...currentTasks];
-        newTasks.splice(currentIndex + 1, 0, newTask);
-        
-        setTimeout(() => {
-          const input = document.getElementById(`task-input-${newId}`);
-          if (input) input.focus();
-        }, 0);
-        
+        newTasks.splice(currentIndex + 1, 0, savedTask);
         return newTasks;
       });
+      
+      setTimeout(() => {
+        const input = document.getElementById(`task-input-${savedTask.id}`);
+        if (input) input.focus();
+      }, 0);
     }
   };
 
-  const addEmptyTask = (category) => {
-    const newId = Date.now().toString();
-    const newTask = {
-      id: newId,
+  const addEmptyTask = async (category) => {
+    const savedTask = await api.createTask({
       text: '',
       category: category,
       done: false,
-      indentLevel: 0
-    };
-    setTasks(prev => [...prev, newTask]);
-    
-    setTimeout(() => {
-      const input = document.getElementById(`task-input-${newId}`);
-      if (input) input.focus();
-    }, 0);
+      indentLevel: 0,
+      orderIndex: tasks.length
+    }).catch(console.error);
+
+    if (savedTask) {
+      setTasks(prev => [...prev, savedTask]);
+      setTimeout(() => {
+        const input = document.getElementById(`task-input-${savedTask.id}`);
+        if (input) input.focus();
+      }, 0);
+    }
   };
 
   const addCategory = (e) => {
@@ -173,16 +183,18 @@ export default function TodoSidebar() {
     setNewCategoryText('');
   };
 
-  const removeCategory = (catToRemove) => {
+  const removeCategory = async (catToRemove) => {
     if (window.confirm(`Ceci supprimera définitivement la catégorie "${catToRemove}" ET TOUTES LES TÂCHES qu'elle contient. Continuer ?`)) {
       setCategories(categories.filter(c => c !== catToRemove));
       setTasks(tasks.filter(t => t.category !== catToRemove));
+      await api.deleteTaskCategory(catToRemove).catch(console.error);
     }
   };
 
-  const clearCategoryTasks = (catToClear) => {
+  const clearCategoryTasks = async (catToClear) => {
     if (window.confirm(`Vous allez vider TOUTES LES TÂCHES présentes dans "${catToClear}". Elles seront supprimées définitivement. Confirmer ?`)) {
       setTasks(tasks.filter(t => t.category !== catToClear));
+      await api.deleteTaskCategory(catToClear).catch(console.error);
     }
   };
 
@@ -200,7 +212,7 @@ export default function TodoSidebar() {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  const handleDragEnd = (event) => {
+  const handleDragEnd = async (event) => {
     const { active, over } = event;
     if (!over) return;
 
@@ -208,6 +220,9 @@ export default function TodoSidebar() {
     const overId = over.id;
 
     if (activeId === overId) return;
+
+    let updatedTasks = [];
+    let modifiedTask = null;
 
     setTasks((prevTasks) => {
       const activeIndex = prevTasks.findIndex(t => t.id === activeId);
@@ -217,6 +232,8 @@ export default function TodoSidebar() {
         if (activeTask.category !== overId) {
           const newTasks = [...prevTasks];
           newTasks[activeIndex] = { ...activeTask, category: overId };
+          modifiedTask = newTasks[activeIndex];
+          updatedTasks = newTasks;
           return newTasks;
         }
         return prevTasks;
@@ -235,11 +252,17 @@ export default function TodoSidebar() {
         const newOverIndex = newTasks.findIndex(t => t.id === overId);
         newTasks.splice(newOverIndex, 0, element);
         
+        modifiedTask = element;
+        updatedTasks = newTasks;
         return newTasks;
       }
 
       return prevTasks;
     });
+
+    if (modifiedTask) {
+      await api.updateTask(modifiedTask.id, { ...modifiedTask }).catch(console.error);
+    }
   };
 
   return (
