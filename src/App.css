@@ -15,8 +15,8 @@
 
 /* Default state for the sidebar */
 .todo-sidebar-area {
-  width: 380px;
   min-width: 300px;
+  max-width: 800px;
   height: 100%;
   background-color: var(--panel-bg);
   border-left: 1px solid var(--border-color);
@@ -25,7 +25,23 @@
   flex-direction: column;
   z-index: 10;
   position: relative;
-  transition: width 0.2s ease;
+}
+
+.resize-handle {
+  position: absolute;
+  left: -2px; /* slight overflow to make it easier to grab without requiring pixel precision */
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  cursor: ew-resize;
+  background-color: transparent;
+  z-index: 100;
+  transition: background-color 0.2s;
+}
+
+.resize-handle:hover,
+.resize-handle:active {
+  background-color: var(--primary);
 }
 
 @media (max-width: 768px) {
@@ -33,9 +49,12 @@
     flex-direction: column;
   }
   .todo-sidebar-area {
-    width: 100%;
+    width: 100% !important;
     height: 50vh;
     border-left: none;
     border-top: 1px solid var(--border-color);
+  }
+  .resize-handle {
+    display: none; /* Disable horizontal resize on mobile layout */
   }
 }

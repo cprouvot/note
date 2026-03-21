@@ -31,7 +31,7 @@ const defaultEdges = [];
 const BOARDS_STORAGE_KEY = 'miro_clone_boards_state';
 
 function MindMapCanvas({ activeBoardId, boards, setBoards }) {
-  const { setViewport, getNodes, getEdges } = useReactFlow();
+  const { getNodes, getEdges } = useReactFlow();
 
   const activeBoard = boards.find(b => b.id === activeBoardId) || boards[0];
   const [nodes, setNodes] = useState(activeBoard.nodes || defaultNodes);
@@ -43,7 +43,6 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
   useEffect(() => {
     setNodes(activeBoard.nodes || []);
     setEdges(activeBoard.edges || []);
-    setViewport(activeBoard.viewport || { x: 0, y: 0, zoom: 1 });
     setMenu(null);
   }, [activeBoardId]);
 
@@ -242,7 +241,8 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
         onNodeContextMenu={onNodeContextMenu}
         onPaneClick={onPaneClick}
         nodeTypes={nodeTypes}
-        fitView={activeBoard.nodes?.length === 0}
+        fitView={true}
+        fitViewOptions={{ padding: 0.15, maxZoom: 1.2 }}
         attributionPosition="bottom-right"
         deleteKeyCode={['Backspace', 'Delete']}
       >
