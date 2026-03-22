@@ -19,6 +19,31 @@ router.get('/', async (req, res) => {
   }
 });
 
+router.get('/categories', async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { categories: true }
+    });
+    res.json(user.categories || []);
+  } catch (error) {
+    res.status(500).json({ error: 'Erreur Serveur' });
+  }
+});
+
+router.put('/categories', async (req, res) => {
+  try {
+    const { categories } = req.body;
+    await prisma.user.update({
+      where: { id: req.user.id },
+      data: { categories }
+    });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Erreur Serveur' });
+  }
+});
+
 router.post('/', async (req, res) => {
   try {
     const { id, text, category, done, indentLevel, orderIndex } = req.body;

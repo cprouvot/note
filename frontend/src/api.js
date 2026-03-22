@@ -29,6 +29,10 @@ export const api = {
     }
     return res.json();
   },
+  reorderBoards: async (boardIds) => {
+    const res = await fetch(`${API_URL}/boards/reorder/batch`, { method: 'PUT', headers: getHeaders(), body: JSON.stringify({ boardIds }) });
+    return res.json();
+  },
   createBoard: async (data) => {
     const res = await fetch(`${API_URL}/boards`, { method: 'POST', headers: getHeaders(), body: JSON.stringify(data) });
     return res.json();
@@ -43,6 +47,14 @@ export const api = {
   },
 
   // --- TASKS ---
+  getCategories: async () => {
+    const res = await fetch(`${API_URL}/tasks/categories`, { headers: getHeaders() });
+    return res.json();
+  },
+  updateCategories: async (categories) => {
+    const res = await fetch(`${API_URL}/tasks/categories`, { method: 'PUT', headers: getHeaders(), body: JSON.stringify({ categories }) });
+    return res.json();
+  },
   getTasks: async () => {
     const res = await fetch(`${API_URL}/tasks`, { headers: getHeaders() });
     return res.json();

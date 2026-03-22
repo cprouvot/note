@@ -15,6 +15,7 @@ model User {
   role     String  @default("USER") // ADMIN or USER
   boards   Board[]
   tasks    Task[]
+  categories String[] @default(["Akabia", "Perso", "En attente", "Done"])
   createdAt DateTime @default(now())
 }
 
@@ -26,6 +27,7 @@ model Board {
   viewport  Json
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orderIndex Float   @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

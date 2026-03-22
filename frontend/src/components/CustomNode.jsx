@@ -8,7 +8,7 @@ export default function CustomNode({ id, data, selected }) {
   const [bgColor, setBgColor] = useState(data.bgColor || '#ffffff');
   const [textColor, setTextColor] = useState(data.textColor || '#0f172a');
 
-  const { setNodes, setEdges, getNodes } = useReactFlow();
+  const { setNodes, setEdges, getNodes, getEdges } = useReactFlow();
 
   const onDoubleClick = () => setIsEditing(true);
 
@@ -45,18 +45,29 @@ export default function CustomNode({ id, data, selected }) {
   const onAddChild = (evt, direction = 'right') => {
     if(evt) evt.stopPropagation();
     const nodes = getNodes();
+    const edges = getEdges();
     const parentNode = nodes.find(n => n.id === id);
     if (!parentNode) return;
 
     const newNodeId = `node_${Math.random().toString(36).substr(2, 9)}`;
     const isLeft = direction === 'left';
+
+    // Calculate vertical offset relative to existing children on the SAME side
+    const sideChildrenEdges = edges.filter(e => e.source === id && (isLeft ? e.sourceHandle === 'source-left' : e.sourceHandle !== 'source-left'));
+    const sideChildrenNodes = nodes.filter(n => sideChildrenEdges.some(edge => edge.target === n.id));
+    
+    let newY = parentNode.position.y;
+    if (sideChildrenNodes.length > 0) {
+      const maxY = Math.max(...sideChildrenNodes.map(n => n.position.y));
+      newY = maxY + 80;
+    }
     
     const newNode = {
       id: newNodeId,
       type: 'custom',
       position: { 
         x: parentNode.position.x + (isLeft ? -280 : 280), 
-        y: parentNode.position.y 
+        y: newY 
       },
       data: { label: 'Nouvelle idée' },
     };

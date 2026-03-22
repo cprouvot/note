@@ -6,7 +6,6 @@ import { CSS } from '@dnd-kit/utilities';
 import { api } from '../api';
 import './TodoSidebar.css';
 
-const CATEGORY_STORAGE_KEY = 'miro_clone_categories_state';
 const defaultCategories = ['Akabia', 'Perso', 'En attente', 'Done'];
 
 function DroppableEmptyCategory({ categoryId }) {
@@ -59,33 +58,33 @@ function SortableTaskItem({ task, toggleTask, removeTask, updateTaskText, handle
 }
 
 export default function TodoSidebar() {
-  const [categories, setCategories] = useState(() => {
-    const saved = localStorage.getItem(CATEGORY_STORAGE_KEY);
-    if (saved) {
-      try { return JSON.parse(saved); } catch(e) {}
-    }
-    return defaultCategories;
-  });
-
+  const [categories, setCategories] = useState(defaultCategories);
   const [tasks, setTasks] = useState([]);
   const [newCategoryText, setNewCategoryText] = useState('');
   const [copiedCategory, setCopiedCategory] = useState(null);
 
   useEffect(() => {
-    const fetchTasks = async () => {
+    const fetchTasksAndCategories = async () => {
       try {
-        const data = await api.getTasks();
-        setTasks(data);
+        const [tasksData, catsData] = await Promise.all([
+          api.getTasks(),
+          api.getCategories()
+        ]);
+        setTasks(tasksData);
+        if (catsData && catsData.length > 0) {
+          setCategories(catsData);
+        }
       } catch (err) {
-        console.error("Failed to load tasks", err);
+        console.error("Failed to load tasks and categories", err);
       }
     };
-    fetchTasks();
+    fetchTasksAndCategories();
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem(CATEGORY_STORAGE_KEY, JSON.stringify(categories));
-  }, [categories]);
+  const saveCategories = async (newCats) => {
+    setCategories(newCats);
+    await api.updateCategories(newCats).catch(console.error);
+  };
 
   const toggleTask = async (id) => {
     const task = tasks.find(t => t.id === id);
@@ -178,14 +177,14 @@ export default function TodoSidebar() {
     e.preventDefault();
     const cleanCat = newCategoryText.trim();
     if (cleanCat && !categories.includes(cleanCat)) {
-      setCategories([...categories, cleanCat]);
+      saveCategories([...categories, cleanCat]);
     }
     setNewCategoryText('');
   };
 
   const removeCategory = async (catToRemove) => {
     if (window.confirm(`Ceci supprimera définitivement la catégorie "${catToRemove}" ET TOUTES LES TÂCHES qu'elle contient. Continuer ?`)) {
-      setCategories(categories.filter(c => c !== catToRemove));
+      saveCategories(categories.filter(c => c !== catToRemove));
       setTasks(tasks.filter(t => t.category !== catToRemove));
       await api.deleteTaskCategory(catToRemove).catch(console.error);
     }
@@ -268,7 +267,6 @@ export default function TodoSidebar() {
   return (
     <div className="sidebar-container">
       <div className="sidebar-header">
-        <div className="header-icon">CP</div>
         <h2>To do list</h2>
       </div>
 

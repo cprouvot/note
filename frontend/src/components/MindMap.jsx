@@ -11,6 +11,9 @@ import ReactFlow, {
   useReactFlow
 } from 'reactflow';
 import { Plus, Square, Type } from 'lucide-react';
+import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
+import { SortableContext, horizontalListSortingStrategy, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 import 'reactflow/dist/style.css';
 import CustomNode from './CustomNode';
 import RectangleNode from './RectangleNode';
@@ -28,6 +31,44 @@ const defaultNodes = [
   { id: '1', type: 'custom', position: { x: 250, y: 250 }, data: { label: 'Objectif Principal' }, zIndex: 0 },
 ];
 const defaultEdges = [];
+
+function SortableBoardTab({ board, activeBoardId, setActiveBoardId, renameBoard, removeBoard, isOnlyBoard }) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: board.id });
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+    zIndex: isDragging ? 2 : 1,
+    position: 'relative',
+    touchAction: 'none'
+  };
+
+  return (
+    <div 
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className={`board-tab ${activeBoardId === board.id ? 'active' : ''}`}
+      onClick={() => setActiveBoardId(board.id)}
+    >
+      <input 
+        value={board.name} 
+        onChange={(e) => renameBoard(board.id, e.target.value)}
+        className="board-tab-input"
+        onPointerDown={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+      />
+      {!isOnlyBoard && (
+        <button 
+          className="close-tab-btn" 
+          onClick={(e) => { e.stopPropagation(); removeBoard(board.id, e); }}
+          onPointerDown={(e) => e.stopPropagation()}
+        >×</button>
+      )}
+    </div>
+  );
+}
 
 function MindMapCanvas({ activeBoardId, boards, setBoards }) {
   const { getNodes, getEdges } = useReactFlow();
@@ -174,46 +215,63 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
     const rootNode = nodes.find(n => n.id === rootId);
     if (!rootNode) return setMenu(null);
 
-    const getChildrenSubtree = (parentId) => {
-      const childrenIds = edges.filter(e => e.source === parentId).map(e => e.target);
-      let subtree = { id: parentId, children: [] };
-      for (const childId of childrenIds) {
-        subtree.children.push(getChildrenSubtree(childId));
+    const getChildrenSubtree = (parentId, inheritedDirection) => {
+      const childEdges = edges.filter(e => e.source === parentId);
+      let children = [];
+      for (const edge of childEdges) {
+        let dir = inheritedDirection || (edge.sourceHandle === 'source-left' ? 'left' : 'right');
+        children.push({
+           id: edge.target,
+           direction: dir,
+           children: getChildrenSubtree(edge.target, dir)
+        });
       }
-      return subtree;
+      return children;
     };
 
-    const tree = getChildrenSubtree(rootId);
-    if (tree.children.length === 0) return setMenu(null);
+    const rootChildren = getChildrenSubtree(rootId, null);
+    if (rootChildren.length === 0) return setMenu(null);
 
-    const calculateSizes = (nodeTree) => {
-      if (nodeTree.children.length === 0) {
-        nodeTree.size = 1;
-      } else {
-        nodeTree.size = nodeTree.children.reduce((acc, child) => {
-          calculateSizes(child);
-          return acc + child.size;
-        }, 0);
+    const calculateSizes = (childrenArray) => {
+      let totalSize = 0;
+      for (const child of childrenArray) {
+        if (child.children.length === 0) {
+          child.size = 1;
+        } else {
+          child.size = calculateSizes(child.children);
+        }
+        totalSize += child.size;
       }
+      return totalSize;
     };
-    calculateSizes(tree);
+
+    const leftChildren = rootChildren.filter(c => c.direction === 'left');
+    const rightChildren = rootChildren.filter(c => c.direction === 'right');
+
+    const leftSize = calculateSizes(leftChildren);
+    const rightSize = calculateSizes(rightChildren);
 
     const nodePositions = {};
     const X_OFFSET = 320;
     const Y_OFFSET = 100;
 
-    const positionTree = (nodeTree, currentX, currentY) => {
-      nodePositions[nodeTree.id] = { x: currentX, y: currentY };
-      let startY = currentY - ((nodeTree.size - 1) * Y_OFFSET) / 2;
+    const positionChildren = (childrenArray, parentX, parentY, isLeft) => {
+      const totalSize = childrenArray.reduce((sum, c) => sum + c.size, 0);
+      let startY = parentY - ((totalSize - 1) * Y_OFFSET) / 2;
 
-      for (const child of nodeTree.children) {
+      for (const child of childrenArray) {
         const childY = startY + ((child.size - 1) * Y_OFFSET) / 2;
-        positionTree(child, currentX + X_OFFSET, childY);
+        const childX = parentX + (isLeft ? -X_OFFSET : X_OFFSET);
+        nodePositions[child.id] = { x: childX, y: childY };
+        
+        positionChildren(child.children, childX, childY, isLeft);
+        
         startY += child.size * Y_OFFSET;
       }
     };
 
-    positionTree(tree, rootNode.position.x, rootNode.position.y);
+    positionChildren(leftChildren, rootNode.position.x, rootNode.position.y, true);
+    positionChildren(rightChildren, rootNode.position.x, rootNode.position.y, false);
 
     setNodes((nds) => 
       nds.map(n => {
@@ -318,12 +376,40 @@ export default function MindMap() {
     loadData();
   }, []);
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+
+  const handleDragEnd = async (event) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    let newOrderIds = [];
+    setBoards((prevBoards) => {
+      const oldIndex = prevBoards.findIndex(b => b.id === active.id);
+      const newIndex = prevBoards.findIndex(b => b.id === over.id);
+      
+      const newBoards = [...prevBoards];
+      const [moved] = newBoards.splice(oldIndex, 1);
+      newBoards.splice(newIndex, 0, moved);
+      
+      newOrderIds = newBoards.map(b => b.id);
+      return newBoards;
+    });
+
+    if (newOrderIds.length > 0) {
+      await api.reorderBoards(newOrderIds).catch(console.error);
+    }
+  };
+
   const addBoard = async () => {
     const newBoard = await api.createBoard({ 
       name: `Nouvelle Carte ${boards.length + 1}`,
       nodes: [],
       edges: [],
-      viewport: {x:0, y:0, zoom:1}
+      viewport: {x:0, y:0, zoom:1},
+      orderIndex: boards.length
     }).catch(console.error);
     
     if (newBoard) {
@@ -361,22 +447,21 @@ export default function MindMap() {
   return (
     <div className="mindmap-container-wrapper">
       <div className="boards-tabs">
-        {boards.map(b => (
-          <div 
-            key={b.id} 
-            className={`board-tab ${activeBoardId === b.id ? 'active' : ''}`}
-            onClick={() => setActiveBoardId(b.id)}
-          >
-            <input 
-              value={b.name} 
-              onChange={(e) => renameBoard(b.id, e.target.value)}
-              className="board-tab-input"
-            />
-            {boards.length > 1 && (
-              <button className="close-tab-btn" onClick={(e) => removeBoard(b.id, e)}>×</button>
-            )}
-          </div>
-        ))}
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={boards.map(b => b.id)} strategy={horizontalListSortingStrategy}>
+            {boards.map(b => (
+              <SortableBoardTab 
+                key={b.id} 
+                board={b} 
+                activeBoardId={activeBoardId} 
+                setActiveBoardId={setActiveBoardId} 
+                renameBoard={renameBoard} 
+                removeBoard={removeBoard} 
+                isOnlyBoard={boards.length <= 1}
+              />
+            ))}
+          </SortableContext>
+        </DndContext>
         <button className="add-board-btn" onClick={addBoard} title="Nouvelle Carte">
           <Plus size={16} />
         </button>
