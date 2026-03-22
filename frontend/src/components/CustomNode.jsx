@@ -109,7 +109,8 @@ export default function CustomNode({ id, data, selected }) {
   }, [selected, isEditing, id, setNodes, setEdges, getNodes, label, bgColor, textColor]);
 
   const onKeyDown = (evt) => {
-    if (evt.key === 'Enter') {
+    if (evt.key === 'Enter' && !evt.shiftKey) {
+      evt.preventDefault();
       onBlur();
     }
   };
@@ -169,12 +170,13 @@ export default function CustomNode({ id, data, selected }) {
       <Handle type="source" position={Position.Right} style={{ background: '#94a3b8', width: 8, height: 8 }} />
       
       {isEditing ? (
-        <input
+        <textarea
           value={label}
           onChange={onChange}
           onBlur={onBlur}
           onKeyDown={onKeyDown}
           autoFocus
+          rows={label.split('\n').length || 1}
           style={{
             border: 'none',
             outline: 'none',
@@ -184,11 +186,13 @@ export default function CustomNode({ id, data, selected }) {
             fontFamily: 'Inter, sans-serif',
             width: '100%',
             fontWeight: '500',
-            color: 'inherit'
+            color: 'inherit',
+            resize: 'none',
+            overflow: 'hidden'
           }}
         />
       ) : (
-        <div style={{ userSelect: 'none' }}>{label}</div>
+        <div style={{ userSelect: 'none', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{label}</div>
       )}
 
       {selected && (

@@ -71,7 +71,7 @@ function SortableBoardTab({ board, activeBoardId, setActiveBoardId, renameBoard,
 }
 
 function MindMapCanvas({ activeBoardId, boards, setBoards }) {
-  const { getNodes, getEdges } = useReactFlow();
+  const { getNodes, getEdges, getIntersectingNodes } = useReactFlow();
 
   const activeBoard = boards.find(b => b.id === activeBoardId) || boards[0] || {};
   const [nodes, setNodes] = useState(activeBoard.nodes || defaultNodes);
@@ -137,29 +137,132 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
   }, [getNodes, getEdges]);
 
   const onNodeDrag = useCallback((event, node) => {
-    if (!dragCache.current || dragCache.current.descendantIds.length === 0) return;
-    const { startPos, descendantPositions, descendantIds } = dragCache.current;
+    let hoverTargetId = null;
+    const intersections = getIntersectingNodes(node).filter(n => n.id !== node.id);
     
-    const dx = node.position.x - startPos.x;
-    const dy = node.position.y - startPos.y;
+    if (intersections.length > 0) {
+      const target = intersections[0];
+      const descendants = dragCache.current ? dragCache.current.descendantIds : [];
+      if (!descendants.includes(target.id) && target.id !== node.id) {
+         hoverTargetId = target.id;
+      }
+    }
 
     setNodes(nds => nds.map(n => {
-      if (descendantIds.includes(n.id)) {
-         return {
-           ...n,
-           position: {
-             x: descendantPositions[n.id].x + dx,
-             y: descendantPositions[n.id].y + dy
-           }
-         };
-      }
-      return n;
-    }));
-  }, [setNodes]);
+      let nextNode = n;
 
-  const onNodeDragStop = useCallback(() => {
+      if (dragCache.current && dragCache.current.descendantIds.includes(n.id)) {
+        const { startPos, descendantPositions } = dragCache.current;
+        const dx = node.position.x - startPos.x;
+        const dy = node.position.y - startPos.y;
+        nextNode = {
+          ...nextNode,
+          position: {
+            x: descendantPositions[n.id].x + dx,
+            y: descendantPositions[n.id].y + dy
+          }
+        };
+      }
+
+      const isHovered = n.id === hoverTargetId;
+      if (isHovered) {
+        if (!nextNode.className || !nextNode.className.includes('drop-target-hover')) {
+          nextNode = { ...nextNode, className: `${nextNode.className || ''} drop-target-hover`.trim() };
+        }
+      } else {
+        if (nextNode.className && nextNode.className.includes('drop-target-hover')) {
+           nextNode = { ...nextNode, className: nextNode.className.replace('drop-target-hover', '').trim() };
+        }
+      }
+
+      return nextNode;
+    }));
+  }, [setNodes, getIntersectingNodes]);
+
+  const onNodeDragStop = useCallback((event, node) => {
+    let dx = 0, dy = 0;
+    let dragStartPos = { x: node.position.x, y: node.position.y };
+    let descendants = [], startPositions = {};
+    if (dragCache.current) {
+      const { startPos, descendantPositions, descendantIds } = dragCache.current;
+      dragStartPos = startPos;
+      dx = node.position.x - startPos.x;
+      dy = node.position.y - startPos.y;
+      descendants = descendantIds || [];
+      startPositions = descendantPositions || {};
+    }
     dragCache.current = null;
-  }, []);
+
+    const intersections = getIntersectingNodes(node).filter(n => n.id !== node.id);
+    let newParent = null;
+
+    const currentEdges = getEdges();
+    if (intersections.length > 0) {
+      const target = intersections[0];
+      const getAllDescendants = (parentId) => {
+        let result = [];
+        const childrenIds = currentEdges.filter(e => e.source === parentId).map(e => e.target);
+        childrenIds.forEach(childId => {
+          result.push(childId);
+          result = result.concat(getAllDescendants(childId));
+        });
+        return result;
+      };
+      
+      const allDescendants = getAllDescendants(node.id);
+      if (!allDescendants.includes(target.id) && target.id !== node.id) {
+        newParent = target;
+      }
+    }
+
+    let finalNodePos = { x: node.position.x, y: node.position.y };
+
+    if (newParent) {
+      const isLeft = node.position.x < newParent.position.x;
+      
+      const sideEdges = currentEdges.filter(e => e.source === newParent.id && (isLeft ? e.sourceHandle === 'source-left' : e.sourceHandle !== 'source-left'));
+      const sideNodes = getNodes().filter(n => sideEdges.some(edge => edge.target === n.id) && n.id !== node.id);
+      
+      let newY = newParent.position.y;
+      if (sideNodes.length > 0) {
+        newY = Math.max(...sideNodes.map(n => n.position.y)) + 100;
+      }
+      
+      finalNodePos = { x: newParent.position.x + (isLeft ? -320 : 320), y: newY };
+      dx = finalNodePos.x - dragStartPos.x;
+      dy = finalNodePos.y - dragStartPos.y;
+      
+      setEdges(eds => {
+        const filtered = eds.filter(e => e.target !== node.id);
+        const newEdge = {
+          id: `edge_${newParent.id}_${node.id}_${Date.now()}`,
+          source: newParent.id,
+          target: node.id,
+          sourceHandle: isLeft ? 'source-left' : null,
+          targetHandle: isLeft ? 'target-right' : null,
+          animated: true,
+          style: { stroke: '#94a3b8', strokeWidth: 2 }
+        };
+        return [...filtered, newEdge];
+      });
+    }
+
+    setNodes(nds => nds.map(n => {
+       let updatedNode = n;
+       if (n.id === node.id) {
+         updatedNode = { ...updatedNode, position: finalNodePos };
+       } else if (descendants.includes(n.id)) {
+         updatedNode = { 
+           ...updatedNode, 
+           position: { x: startPositions[n.id].x + dx, y: startPositions[n.id].y + dy }
+         };
+       }
+       if (updatedNode.className && updatedNode.className.includes('drop-target-hover')) {
+          updatedNode = { ...updatedNode, className: updatedNode.className.replace('drop-target-hover', '').trim() };
+       }
+       return updatedNode;
+    }));
+  }, [getIntersectingNodes, getEdges, setEdges, getNodes, setNodes]);
 
   const addNode = (type) => {
     const currentZs = nodes.map(n => n.zIndex || 0);
