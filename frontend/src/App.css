@@ -46,15 +46,23 @@
 
 @media (max-width: 768px) {
   .app-container {
-    flex-direction: column;
+    display: block;
+  }
+  .mindmap-area {
+    width: 100vw;
+    height: 100vh;
   }
   .todo-sidebar-area {
-    width: 100% !important;
-    height: 50vh;
-    border-left: none;
-    border-top: 1px solid var(--border-color);
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100vh !important;
+    border: none !important;
+    z-index: 50 !important;
   }
   .resize-handle {
-    display: none; /* Disable horizontal resize on mobile layout */
+    display: none;
   }
 }

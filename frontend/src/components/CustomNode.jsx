@@ -7,7 +7,8 @@ export default function CustomNode({ id, data, selected }) {
   const [label, setLabel] = useState(data.label);
   const [bgColor, setBgColor] = useState(data.bgColor || '#ffffff');
   const [textColor, setTextColor] = useState(data.textColor || '#0f172a');
-
+  const [showBgPalette, setShowBgPalette] = useState(false);
+  const [showTextPalette, setShowTextPalette] = useState(false);
   const { setNodes, setEdges, getNodes, getEdges } = useReactFlow();
 
   const onDoubleClick = () => setIsEditing(true);
@@ -117,7 +118,7 @@ export default function CustomNode({ id, data, selected }) {
 
   return (
     <div style={{
-      padding: '12px 24px',
+      padding: '8px 16px',
       borderRadius: '8px',
       background: bgColor,
       border: `2px solid ${selected ? 'var(--primary)' : 'var(--node-border)'}`,
@@ -125,7 +126,7 @@ export default function CustomNode({ id, data, selected }) {
       fontSize: '14px',
       fontFamily: 'Inter, sans-serif',
       color: textColor,
-      minWidth: '150px',
+      minWidth: '120px',
       textAlign: 'center',
       fontWeight: '500',
       position: 'relative',
@@ -135,7 +136,8 @@ export default function CustomNode({ id, data, selected }) {
       
       {/* Floating Toolbar for colors when node is selected */}
       {selected && (
-        <div style={{
+        <div 
+          style={{
           position: 'absolute',
           top: '-40px',
           left: '50%',
@@ -150,18 +152,38 @@ export default function CustomNode({ id, data, selected }) {
           gap: '12px',
           zIndex: 20
         }}>
-           <label title="Couleur de fond" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-             <div style={{ width: '20px', height: '20px', backgroundColor: bgColor, borderRadius: '4px', border: '1px solid #cbd5e1' }}></div>
-             <input type="color" value={bgColor} onChange={onBgColorChange} style={{ opacity: 0, position: 'absolute', width: '20px', height: '20px', cursor: 'pointer' }} />
-           </label>
+           <div style={{ position: 'relative' }}>
+             <button 
+               onClick={(e) => { e.stopPropagation(); setShowBgPalette(!showBgPalette); setShowTextPalette(false); }}
+               title="Couleur de fond"
+               style={{ width: '20px', height: '20px', backgroundColor: bgColor, borderRadius: '4px', border: '1px solid #cbd5e1', cursor: 'pointer', padding: 0 }}
+             />
+             {showBgPalette && (
+               <div style={{ position: 'absolute', top: '28px', left: '-20px', background: 'white', padding: '6px', borderRadius: '6px', boxShadow: 'var(--shadow-lg)', border: '1px solid var(--border-color)', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', zIndex: 100 }}>
+                 {['#ffffff', '#fecaca', '#fef08a', '#bbf7d0', '#bfdbfe', '#e9d5ff'].map(c => (
+                   <button key={c} onClick={(e) => { e.stopPropagation(); setBgColor(c); updateNodeData({ bgColor: c }); setShowBgPalette(false); }} style={{ width: '20px', height: '20px', background: c, border: '1px solid #cbd5e1', borderRadius: '50%', cursor: 'pointer', padding: 0 }} />
+                 ))}
+               </div>
+             )}
+           </div>
            
            <div style={{ width: '1px', background: 'var(--border-color)', height: '18px' }}></div>
            
-           <label title="Couleur du texte" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', fontWeight: 'bold', color: textColor, fontSize: '15px' }}>
-             A
-             <div style={{ width: '14px', height: '3px', backgroundColor: textColor, position: 'absolute', bottom: '4px' }}></div>
-             <input type="color" value={textColor} onChange={onTextColorChange} style={{ opacity: 0, position: 'absolute', width: '20px', height: '20px', cursor: 'pointer' }} />
-           </label>
+           <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+             <span style={{ fontWeight: 'bold', color: textColor, fontSize: '15px', marginRight: '4px', pointerEvents: 'none' }}>A</span>
+             <button 
+               onClick={(e) => { e.stopPropagation(); setShowTextPalette(!showTextPalette); setShowBgPalette(false); }}
+               title="Couleur du texte"
+               style={{ width: '16px', height: '16px', backgroundColor: textColor, borderRadius: '4px', border: '1px solid #cbd5e1', cursor: 'pointer', padding: 0 }}
+             />
+             {showTextPalette && (
+               <div style={{ position: 'absolute', top: '28px', left: '-10px', background: 'white', padding: '6px', borderRadius: '6px', boxShadow: 'var(--shadow-lg)', border: '1px solid var(--border-color)', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px', zIndex: 100 }}>
+                 {['#0f172a', '#ffffff', '#7f1d1d', '#1e3a8a'].map(c => (
+                   <button key={c} onClick={(e) => { e.stopPropagation(); setTextColor(c); updateNodeData({ textColor: c }); setShowTextPalette(false); }} style={{ width: '20px', height: '20px', background: c, border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', padding: 0 }} />
+                 ))}
+               </div>
+             )}
+           </div>
         </div>
       )}
 
@@ -192,7 +214,27 @@ export default function CustomNode({ id, data, selected }) {
           }}
         />
       ) : (
-        <div style={{ userSelect: 'none', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{label}</div>
+        <div style={{ userSelect: 'none', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+          {label.split(/(https?:\/\/[^\s]+)/g).map((part, i) => {
+            if (part.match(/^https?:\/\//)) {
+              return (
+                <a 
+                   key={i} 
+                   href={part} 
+                   target="_blank" 
+                   rel="noopener noreferrer" 
+                   className="nodrag"
+                   onPointerDown={(e) => e.stopPropagation()}
+                   onClick={(e) => e.stopPropagation()}
+                   style={{ color: 'inherit', textDecoration: 'underline', fontWeight: 'bold' }}
+                >
+                  {part}
+                </a>
+              );
+            }
+            return <span key={i}>{part}</span>;
+          })}
+        </div>
       )}
 
       {selected && (

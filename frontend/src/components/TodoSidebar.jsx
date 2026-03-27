@@ -130,12 +130,19 @@ export default function TodoSidebar() {
       const currentTask = tasks.find(t => t.id === id);
       if (!currentTask) return;
       
+      const catTasks = tasks.filter(t => t.category === currentTask.category);
+      const catIndex = catTasks.findIndex(t => t.id === id);
+      const nextTask = catTasks[catIndex + 1];
+      const newOrderIndex = nextTask 
+        ? (currentTask.orderIndex + nextTask.orderIndex) / 2 
+        : currentTask.orderIndex + 1;
+
       const newTaskData = {
         text: '',
         category: currentTask.category,
         done: false,
         indentLevel: currentTask.indentLevel || 0,
-        orderIndex: tasks.length
+        orderIndex: newOrderIndex
       };
 
       const savedTask = await api.createTask(newTaskData).catch(console.error);
@@ -151,17 +158,21 @@ export default function TodoSidebar() {
       setTimeout(() => {
         const input = document.getElementById(`task-input-${savedTask.id}`);
         if (input) input.focus();
-      }, 0);
+      }, 100);
     }
   };
 
   const addEmptyTask = async (category) => {
+    const catTasks = tasks.filter(t => t.category === category);
+    const lastTask = catTasks[catTasks.length - 1];
+    const newOrderIndex = lastTask ? lastTask.orderIndex + 1 : 0;
+
     const savedTask = await api.createTask({
       text: '',
       category: category,
       done: false,
       indentLevel: 0,
-      orderIndex: tasks.length
+      orderIndex: newOrderIndex
     }).catch(console.error);
 
     if (savedTask) {
@@ -169,7 +180,7 @@ export default function TodoSidebar() {
       setTimeout(() => {
         const input = document.getElementById(`task-input-${savedTask.id}`);
         if (input) input.focus();
-      }, 0);
+      }, 100);
     }
   };
 
@@ -242,17 +253,34 @@ export default function TodoSidebar() {
       if (overIndex !== -1) {
         const overTask = prevTasks[overIndex];
         let newTasks = [...prevTasks];
-        
-        if (activeTask.category !== overTask.category) {
-          newTasks[activeIndex] = { ...activeTask, category: overTask.category };
-        }
-        
-        const element = newTasks.splice(activeIndex, 1)[0];
+        const activeCat = activeTask.category;
+        const overCat = overTask.category;
+
+        newTasks.splice(activeIndex, 1);
         const newOverIndex = newTasks.findIndex(t => t.id === overId);
-        newTasks.splice(newOverIndex, 0, element);
         
-        modifiedTask = element;
-        updatedTasks = newTasks;
+        const dropItem = { ...activeTask, category: overCat };
+        newTasks.splice(newOverIndex, 0, dropItem);
+
+        const catOnlyTasks = newTasks.filter(t => t.category === overCat);
+        const catItemIndex = catOnlyTasks.findIndex(t => t.id === dropItem.id);
+        const prevTask = catOnlyTasks[catItemIndex - 1];
+        const nextTask = catOnlyTasks[catItemIndex + 1];
+
+        if (prevTask && nextTask) {
+           dropItem.orderIndex = (prevTask.orderIndex + nextTask.orderIndex) / 2;
+        } else if (prevTask) {
+           dropItem.orderIndex = prevTask.orderIndex + 1;
+        } else if (nextTask) {
+           dropItem.orderIndex = nextTask.orderIndex - 1;
+        } else {
+           dropItem.orderIndex = 0;
+        }
+
+        const finalGlobalIndex = newTasks.findIndex(t => t.id === dropItem.id);
+        newTasks[finalGlobalIndex] = dropItem;
+        modifiedTask = dropItem;
+
         return newTasks;
       }
 
