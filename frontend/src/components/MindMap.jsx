@@ -11,7 +11,7 @@ import ReactFlow, {
   useReactFlow,
   getRectOfNodes
 } from 'reactflow';
-import { Plus, Square, Type, Map, Camera, Image as ImageIcon } from 'lucide-react';
+import { Plus, Square, Type, Map, Camera, Image as ImageIcon, Cloud, CloudUpload, CheckCircle2 } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, horizontalListSortingStrategy, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -21,7 +21,7 @@ import CustomNode from './CustomNode';
 import RectangleNode from './RectangleNode';
 import TextNode from './TextNode';
 import ImageNode from './ImageNode';
-import { api } from '../api';
+import { api, syncEmitter } from '../api';
 import './MindMap.css';
 
 const nodeTypes = {
@@ -81,10 +81,100 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
   const [nodes, setNodes] = useState(activeBoard.nodes || defaultNodes);
   const [edges, setEdges] = useState(activeBoard.edges || defaultEdges);
   const [menu, setMenu] = useState(null);
+  const [syncState, setSyncState] = useState('saved');
   const [showMiniMap, setShowMiniMap] = useState(() => {
     const saved = localStorage.getItem('mindboard_minimap');
     return saved !== null ? JSON.parse(saved) : false;
   });
+
+  const [past, setPast] = useState([]);
+  const [future, setFuture] = useState([]);
+  const clipboardRef = useRef([]);
+  const isUndoRedoAction = useRef(false);
+
+  const takeSnapshot = useCallback(() => {
+    setPast(p => {
+      const newPast = [...p, { nodes: getNodes(), edges: getEdges() }];
+      if (newPast.length > 50) newPast.shift();
+      return newPast;
+    });
+    setFuture([]);
+  }, [getNodes, getEdges]);
+
+  const undo = useCallback(() => {
+    setPast(p => {
+      if (p.length === 0) return p;
+      const newPast = [...p];
+      const previousState = newPast.pop();
+      setFuture(f => [{ nodes: getNodes(), edges: getEdges() }, ...f]);
+      
+      isUndoRedoAction.current = true;
+      setNodes(previousState.nodes);
+      setEdges(previousState.edges);
+      setTimeout(() => { isUndoRedoAction.current = false; }, 50);
+      return newPast;
+    });
+  }, [getNodes, getEdges, setNodes, setEdges]);
+
+  const redo = useCallback(() => {
+    setFuture(f => {
+      if (f.length === 0) return f;
+      const newFuture = [...f];
+      const nextState = newFuture.shift();
+      setPast(p => {
+         const newPast = [...p, { nodes: getNodes(), edges: getEdges() }];
+         if (newPast.length > 50) newPast.shift();
+         return newPast;
+      });
+      
+      isUndoRedoAction.current = true;
+      setNodes(nextState.nodes);
+      setEdges(nextState.edges);
+      setTimeout(() => { isUndoRedoAction.current = false; }, 50);
+      return newFuture;
+    });
+  }, [getNodes, getEdges, setNodes, setEdges]);
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA' || document.activeElement.isContentEditable) return;
+      
+      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      const modKey = isMac ? e.metaKey : e.ctrlKey;
+
+      if (modKey && e.key.toLowerCase() === 'c') {
+         const selectedNodes = getNodes().filter(n => n.selected);
+         if (selectedNodes.length > 0) clipboardRef.current = selectedNodes;
+      } else if (modKey && e.key.toLowerCase() === 'v') {
+         if (clipboardRef.current.length > 0) {
+            takeSnapshot();
+            const newNodes = clipboardRef.current.map((n, i) => {
+               const clonedData = JSON.parse(JSON.stringify(n.data));
+               return {
+                 ...n,
+                 id: `node_copy_${Date.now()}_${i}`,
+                 selected: true,
+                 data: clonedData,
+                 position: { x: n.position.x + 50, y: n.position.y + 50 }
+               };
+            });
+            setNodes(nds => [...nds.map(n => ({...n, selected: false})), ...newNodes]);
+         }
+      } else if (modKey && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+         e.preventDefault(); undo();
+      } else if (modKey && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) {
+         e.preventDefault(); redo();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [getNodes, setNodes, takeSnapshot, undo, redo]);
+
+  useEffect(() => {
+    const handleSync = (e) => setSyncState(e.detail);
+    syncEmitter.addEventListener('sync', handleSync);
+    return () => syncEmitter.removeEventListener('sync', handleSync);
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('mindboard_minimap', JSON.stringify(showMiniMap));
@@ -138,6 +228,7 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
     if (!file || !file.type.startsWith('image/')) return;
     try {
       const { dataUrl, width, height } = await compressImage(file);
+      takeSnapshot();
       
       const currentZs = nodes.map(n => n.zIndex || 0);
       const maxZ = currentZs.length > 0 ? Math.max(...currentZs) : 0;
@@ -188,15 +279,13 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
     }
   }, [screenToFlowPosition, nodes]);
 
-  // Unnecessary useEffect loop removed - Canvas mounts and unmounts cleanly with ReactFlowProvider keys.
-
   // Debounced Save to Backend
   useEffect(() => {
     setBoards(prev => prev.map(b => b.id === activeBoardId ? { ...b, nodes, edges } : b));
     
     if (activeBoardId) {
+       setSyncState('pending');
        const timer = setTimeout(() => {
-          // Only push the updated nodes and edges, Prisma will safely ignore undefined fields (name/viewport)
           api.updateBoard(activeBoardId, { nodes, edges }).catch(console.error);
        }, 1500); // Debouncer
        return () => clearTimeout(timer);
@@ -236,19 +325,29 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
   };
 
   const onNodesChange = useCallback(
-    (changes) => setNodes((nds) => applyNodeChanges(changes, nds)),
-    [setNodes]
+    (changes) => {
+      if (!isUndoRedoAction.current && changes.some(c => c.type === 'remove')) takeSnapshot();
+      setNodes((nds) => applyNodeChanges(changes, nds));
+    },
+    [setNodes, takeSnapshot]
   );
   const onEdgesChange = useCallback(
-    (changes) => setEdges((eds) => applyEdgeChanges(changes, eds)),
-    [setEdges]
+    (changes) => {
+      if (!isUndoRedoAction.current && changes.some(c => c.type === 'remove')) takeSnapshot();
+      setEdges((eds) => applyEdgeChanges(changes, eds));
+    },
+    [setEdges, takeSnapshot]
   );
   const onConnect = useCallback(
-    (connection) => setEdges((eds) => addEdge({ ...connection, animated: true, style: { stroke: '#94a3b8', strokeWidth: 2 } }, eds)),
-    [setEdges]
+    (connection) => {
+      takeSnapshot();
+      setEdges((eds) => addEdge({ ...connection, animated: true, style: { stroke: '#94a3b8', strokeWidth: 2 } }, eds));
+    },
+    [setEdges, takeSnapshot]
   );
 
   const onNodeDragStart = useCallback((event, node) => {
+    takeSnapshot();
     const currentEdges = getEdges();
     const currentNodes = getNodes();
 
@@ -405,13 +504,22 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
   }, [getIntersectingNodes, getEdges, setEdges, getNodes, setNodes]);
 
   const addNode = (type) => {
+    takeSnapshot();
     const currentZs = nodes.map(n => n.zIndex || 0);
     const maxZ = currentZs.length > 0 ? Math.max(...currentZs) : 0;
+    
+    const centerPosition = screenToFlowPosition({
+      x: window.innerWidth / 2,
+      y: window.innerHeight / 2
+    });
     
     const newNode = {
       id: `node_${Date.now()}`,
       type: type,
-      position: { x: 300 + Math.random() * 50, y: 300 + Math.random() * 50 },
+      position: { 
+        x: centerPosition.x + (Math.random() * 50 - 25), 
+        y: centerPosition.y + (Math.random() * 50 - 25) 
+      },
       data: { label: 'Nouveau', text: '' },
       zIndex: maxZ + 1
     };
@@ -436,6 +544,7 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
   }, [setMenu]);
 
   const bringToFront = () => {
+    takeSnapshot();
     setNodes((nds) => {
       const currentZs = nds.map(n => n.zIndex || 0);
       const maxZ = currentZs.length > 0 ? Math.max(...currentZs) : 0;
@@ -445,6 +554,7 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
   };
 
   const sendToBack = () => {
+    takeSnapshot();
     setNodes((nds) => {
       const currentZs = nds.map(n => n.zIndex || 0);
       const minZ = currentZs.length > 0 ? Math.min(...currentZs) : 0;
@@ -457,6 +567,8 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
     const rootId = menu.id;
     const rootNode = nodes.find(n => n.id === rootId);
     if (!rootNode) return setMenu(null);
+    
+    takeSnapshot();
 
     const getChildrenSubtree = (parentId, inheritedDirection) => {
       const childEdges = edges.filter(e => e.source === parentId);
@@ -548,9 +660,30 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
         attributionPosition="bottom-right"
         deleteKeyCode={['Backspace', 'Delete']}
       >
+        <div style={{ 
+          position: 'absolute', 
+          bottom: '24px', 
+          left: '64px', 
+          zIndex: 100, 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          color: syncState === 'saved' ? '#10b981' : 'var(--text-muted)', 
+          background: 'var(--panel-bg)', 
+          padding: '10px', 
+          borderRadius: '50%', 
+          boxShadow: 'var(--shadow-md)', 
+          border: '1px solid var(--border-color)',
+          transition: 'color 0.3s'
+        }} title={syncState === 'syncing' ? 'Sauvegarde...' : syncState === 'pending' ? 'Modifications...' : 'Enregistré à l\'instant'}>
+           {syncState === 'syncing' && <CloudUpload size={18} className="spin-icon" style={{ animation: 'spin 2s linear infinite' }} />}
+           {syncState === 'pending' && <Cloud size={18} />}
+           {syncState === 'saved' && <CheckCircle2 size={18} />}
+        </div>
+
         <Background color="#cbd5e1" gap={20} size={1.5} />
         <Controls />
-        {showMiniMap && <MiniMap />}
+        {showMiniMap && <MiniMap pannable zoomable />}
         
         <Panel position="top-left" className="toolbar-panel">
           <button className="toolbar-btn" onClick={() => addNode('custom')} title="Ajouter une idée structurée">

@@ -17,6 +17,37 @@ function DroppableEmptyCategory({ categoryId }) {
   );
 }
 
+function BasicTaskItem({ task, toggleTask, removeTask, updateTaskText, handleTaskKeyDown }) {
+  const style = {
+    paddingLeft: `${(task.indentLevel || 0) * 24}px`,
+    position: 'relative'
+  };
+
+  return (
+    <li style={style} className={`task-item done`}>
+      <label className="task-checkbox-label">
+        <input 
+          type="checkbox" 
+          checked={task.done} 
+          onChange={() => toggleTask(task.id)}
+        />
+        <input 
+          id={`task-input-${task.id}`}
+          type="text"
+          value={task.text}
+          onChange={(e) => updateTaskText(task.id, e.target.value)}
+          onKeyDown={(e) => handleTaskKeyDown(e, task.id)}
+          className="task-inline-input"
+          placeholder="Tâche..."
+        />
+      </label>
+      <button className="delete-task-btn" onClick={() => removeTask(task.id)} title="Supprimer la tâche">
+        <Trash2 size={14} />
+      </button>
+    </li>
+  );
+}
+
 function SortableTaskItem({ task, toggleTask, removeTask, updateTaskText, handleTaskKeyDown }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id, data: { category: task.category } });
 
@@ -159,6 +190,28 @@ export default function TodoSidebar() {
         const input = document.getElementById(`task-input-${savedTask.id}`);
         if (input) input.focus();
       }, 100);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const inputs = Array.from(document.querySelectorAll('.task-inline-input'));
+      const index = inputs.indexOf(e.target);
+      if (index > 0) {
+        inputs[index - 1].focus();
+        setTimeout(() => {
+           const val = inputs[index - 1].value;
+           inputs[index - 1].setSelectionRange(val.length, val.length);
+        }, 0);
+      }
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const inputs = Array.from(document.querySelectorAll('.task-inline-input'));
+      const index = inputs.indexOf(e.target);
+      if (index !== -1 && index < inputs.length - 1) {
+        inputs[index + 1].focus();
+        setTimeout(() => {
+           const val = inputs[index + 1].value;
+           inputs[index + 1].setSelectionRange(val.length, val.length);
+        }, 0);
+      }
     }
   };
 
@@ -292,6 +345,15 @@ export default function TodoSidebar() {
     }
   };
 
+  const completedTasks = tasks.filter(t => t.done);
+  
+  const clearCompletedTasks = async () => {
+    if (window.confirm("Vous allez vider TOUTES vos tâches terminées. Confirmer ?")) {
+      setTasks(tasks.filter(t => !t.done));
+      await Promise.all(completedTasks.map(t => api.deleteTask(t.id))).catch(console.error);
+    }
+  };
+
   return (
     <div className="sidebar-container">
       <div className="sidebar-header">
@@ -301,7 +363,7 @@ export default function TodoSidebar() {
       <div className="sidebar-content">
         <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={handleDragEnd}>
           {categories.map(category => {
-            const catTasks = tasks.filter(t => t.category === category);
+            const catTasks = tasks.filter(t => t.category === category && !t.done);
             
             return (
               <div key={category} className="category-section">
@@ -360,6 +422,42 @@ export default function TodoSidebar() {
             );
           })}
         </DndContext>
+
+        {completedTasks.length > 0 && (
+          <div className="category-section" style={{ marginTop: '30px', borderTop: '2px solid var(--border-color)', paddingTop: '15px' }}>
+            <div className="category-header">
+              <h3 style={{ color: '#059669' }}>Tâches terminées</h3>
+              <div className="category-actions">
+                <button 
+                  className="export-category-btn" 
+                  onClick={() => exportCategory('Tâches terminées', completedTasks)} 
+                  title="Copier toutes les tâches terminées"
+                >
+                  {copiedCategory === 'Tâches terminées' ? <Check size={14} color="#22c55e" /> : <Copy size={14} />}
+                </button>
+                <button 
+                  className="clear-category-btn" 
+                  onClick={clearCompletedTasks} 
+                  title="Vider les tâches terminées"
+                >
+                  <Eraser size={14} />
+                </button>
+              </div>
+            </div>
+            <ul className="task-list">
+              {completedTasks.map(task => (
+                <BasicTaskItem 
+                  key={task.id} 
+                  task={task} 
+                  toggleTask={toggleTask} 
+                  removeTask={removeTask}
+                  updateTaskText={updateTaskText}
+                  handleTaskKeyDown={handleTaskKeyDown}
+                />
+              ))}
+            </ul>
+          </div>
+        )}
       </div>
 
       <div className="add-category-wrapper">

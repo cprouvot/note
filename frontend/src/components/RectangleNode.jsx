@@ -1,11 +1,19 @@
 import React, { useState } from 'react';
 import { useReactFlow, NodeResizeControl } from 'reactflow';
-import { Lock, Unlock } from 'lucide-react';
+import { Lock, Unlock, Trash2 } from 'lucide-react';
+import RichTextEditor from './RichTextEditor';
 
 export default function RectangleNode({ id, data, selected }) {
   const [color, setColor] = useState(data.color || '#fef08a');
+  const [textColor, setTextColor] = useState(data.textColor || '#000000');
   const [showColorPalette, setShowColorPalette] = useState(false);
-  const { setNodes } = useReactFlow();
+  const [showTextPalette, setShowTextPalette] = useState(false);
+  const { setNodes, deleteElements } = useReactFlow();
+
+  const onDelete = (e) => {
+    e.stopPropagation();
+    deleteElements({ nodes: [{ id }] });
+  };
 
   const onColorChange = (newColor) => {
     setColor(newColor);
@@ -13,6 +21,29 @@ export default function RectangleNode({ id, data, selected }) {
       nds.map((node) => {
         if (node.id === id) {
           node.data = { ...node.data, color: newColor };
+        }
+        return node;
+      })
+    );
+  };
+
+  const onTextColorChange = (newColor) => {
+    setTextColor(newColor);
+    setNodes((nds) =>
+      nds.map((node) => {
+        if (node.id === id) {
+          node.data = { ...node.data, textColor: newColor };
+        }
+        return node;
+      })
+    );
+  };
+
+  const onTextChange = (html) => {
+    setNodes((nds) =>
+      nds.map((node) => {
+        if (node.id === id) {
+          node.data = { ...node.data, text: html };
         }
         return node;
       })
@@ -104,55 +135,89 @@ export default function RectangleNode({ id, data, selected }) {
             </button>
             {!data.locked && (
               <>
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); setShowColorPalette(!showColorPalette); setShowTextPalette(false); }}
+                    style={{
+                      background: 'white',
+                      borderRadius: '4px',
+                      width: '28px',
+                      height: '28px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                      border: 'none',
+                      cursor: 'pointer',
+                      padding: 0
+                    }}
+                    title="Couleur de fond"
+                  >
+                    <div style={{ width: '16px', height: '16px', backgroundColor: color, borderRadius: '2px', border: '1px solid rgba(0,0,0,0.2)' }}></div>
+                  </button>
+                  {showColorPalette && (
+                    <div style={{ 
+                      position: 'absolute', top: '34px', left: '-5px', 
+                      background: 'var(--panel-bg)', padding: '6px', borderRadius: '6px', 
+                      boxShadow: 'var(--shadow-lg)', border: '1px solid var(--border-color)', 
+                      display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', zIndex: 100 
+                    }}>
+                      {['#ffffff', '#fecaca', '#fef08a', '#bbf7d0', '#bfdbfe', '#e9d5ff'].map(c => (
+                        <button key={c} onClick={(e) => { e.stopPropagation(); onColorChange(c); setShowColorPalette(false); }} style={{ width: '20px', height: '20px', background: c, border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', padding: 0 }} />
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <span style={{ fontWeight: 'bold', color: textColor, fontSize: '15px', marginRight: '4px', pointerEvents: 'none' }}>A</span>
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); setShowTextPalette(!showTextPalette); setShowColorPalette(false); }}
+                    style={{ 
+                      width: '18px', height: '18px', 
+                      backgroundColor: textColor, 
+                      borderRadius: '3px', border: '1px solid #cbd5e1', cursor: 'pointer', padding: 0 
+                    }}
+                    title="Couleur du texte"
+                  />
+                  {showTextPalette && (
+                    <div style={{ 
+                      position: 'absolute', top: '28px', left: '-10px', 
+                      background: 'var(--panel-bg)', padding: '6px', borderRadius: '6px', 
+                      boxShadow: 'var(--shadow-lg)', border: '1px solid var(--border-color)', 
+                      display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px', zIndex: 100 
+                    }}>
+                      {['#000000', '#ffffff', '#7f1d1d', '#1e3a8a', '#14532d', '#b45309', '#0f172a', '#475569'].map(c => (
+                        <button key={c} onClick={(e) => { e.stopPropagation(); onTextColorChange(c); setShowTextPalette(false); }} style={{ width: '20px', height: '20px', background: c, border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', padding: 0 }} />
+                      ))}
+                    </div>
+                  )}
+               </div>
+                
+                <div style={{ width: '1px', background: '#cbd5e1', height: '18px', margin: '0 2px' }}></div>
                 <button 
-                  onClick={(e) => { e.stopPropagation(); setShowColorPalette(!showColorPalette); }}
+                  onClick={onDelete}
                   style={{
-                    background: 'white',
-                    borderRadius: '4px',
-                    width: '28px',
-                    height: '28px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                    border: 'none',
-                    cursor: 'pointer',
-                    padding: 0
+                    background: 'transparent', border: 'none', cursor: 'pointer', padding: '0 4px',
+                    color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center'
                   }}
-                  title="Modifier la couleur"
+                  title="Supprimer"
                 >
-                  <div style={{
-                    width: '16px',
-                    height: '16px',
-                    backgroundColor: color,
-                    borderRadius: '2px',
-                    border: '1px solid rgba(0,0,0,0.2)'
-                  }}></div>
+                  <Trash2 size={16} />
                 </button>
-                {showColorPalette && (
-                  <div style={{ 
-                    position: 'absolute', top: '34px', right: '0', 
-                    background: 'var(--panel-bg)', padding: '6px', borderRadius: '6px', 
-                    boxShadow: 'var(--shadow-lg)', border: '1px solid var(--border-color)', 
-                    display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', zIndex: 100 
-                  }}>
-                    {['#ffffff', '#fecaca', '#fef08a', '#bbf7d0', '#bfdbfe', '#e9d5ff'].map(c => (
-                      <button 
-                        key={c} 
-                        onClick={(e) => { e.stopPropagation(); onColorChange(c); setShowColorPalette(false); }} 
-                        style={{ 
-                          width: '20px', height: '20px', 
-                          background: c, 
-                          border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', padding: 0 
-                        }} 
-                      />
-                    ))}
-                  </div>
-                )}
               </>
             )}
           </div>
         )}
+        
+        <div style={{ padding: '16px', height: '100%', boxSizing: 'border-box', color: textColor }}>
+          <RichTextEditor 
+             content={data.text} 
+             onChange={onTextChange} 
+             readOnly={data.locked}
+             placeholder=""
+          />
+        </div>
       </div>
     </>
   );

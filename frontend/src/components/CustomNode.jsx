@@ -1,19 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { Handle, Position, useReactFlow } from 'reactflow';
-import { Plus } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
+import RichTextEditor from './RichTextEditor';
 
 export default function CustomNode({ id, data, selected }) {
-  const [isEditing, setIsEditing] = useState(false);
   const [label, setLabel] = useState(data.label);
   const [bgColor, setBgColor] = useState(data.bgColor || '#ffffff');
   const [textColor, setTextColor] = useState(data.textColor || '#0f172a');
   const [showBgPalette, setShowBgPalette] = useState(false);
   const [showTextPalette, setShowTextPalette] = useState(false);
-  const { setNodes, setEdges, getNodes, getEdges } = useReactFlow();
+  const { setNodes, setEdges, getNodes, getEdges, deleteElements } = useReactFlow();
 
-  const onDoubleClick = () => setIsEditing(true);
-
-  const onChange = (evt) => setLabel(evt.target.value);
+  const onChange = (html) => {
+     setLabel(html);
+     updateNodeData({ label: html });
+  };
 
   const updateNodeData = (newData) => {
     setNodes((nds) =>
@@ -26,9 +27,9 @@ export default function CustomNode({ id, data, selected }) {
     );
   };
 
-  const onBlur = () => {
-    setIsEditing(false);
-    updateNodeData({ label });
+  const onDelete = (e) => {
+    e.stopPropagation();
+    deleteElements({ nodes: [{ id }] });
   };
 
   const onBgColorChange = (evt) => {
@@ -92,12 +93,11 @@ export default function CustomNode({ id, data, selected }) {
 
   useEffect(() => {
     const handleGlobalKeyDown = (evt) => {
+      // Prevent Tab event firing globally if they are typing inside the rich text editor of this node
+      // Wait, we WANT tab to create a child even when they are focused!
       if (evt.key === 'Tab' && selected) {
         evt.preventDefault();
         onAddChild(evt, evt.shiftKey ? 'left' : 'right');
-        if (isEditing) {
-           onBlur();
-        }
       }
     };
     
@@ -107,14 +107,7 @@ export default function CustomNode({ id, data, selected }) {
     return () => {
       window.removeEventListener('keydown', handleGlobalKeyDown);
     };
-  }, [selected, isEditing, id, setNodes, setEdges, getNodes, label, bgColor, textColor]);
-
-  const onKeyDown = (evt) => {
-    if (evt.key === 'Enter' && !evt.shiftKey) {
-      evt.preventDefault();
-      onBlur();
-    }
-  };
+  }, [selected, id, setNodes, setEdges, getNodes, label, bgColor, textColor]);
 
   return (
     <div style={{
@@ -132,7 +125,7 @@ export default function CustomNode({ id, data, selected }) {
       position: 'relative',
       cursor: 'pointer',
       transition: 'box-shadow 0.2s, border 0.2s'
-    }} onDoubleClick={onDoubleClick}>
+    }}>
       
       {/* Floating Toolbar for colors when node is selected */}
       {selected && (
@@ -184,6 +177,15 @@ export default function CustomNode({ id, data, selected }) {
                </div>
              )}
            </div>
+           
+           <div style={{ width: '1px', background: 'var(--border-color)', height: '18px' }}></div>
+           <button 
+             onClick={onDelete}
+             style={{ background: 'transparent', border: 'none', cursor: 'pointer', padding: '0 4px', color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+             title="Supprimer"
+           >
+             <Trash2 size={16} />
+           </button>
         </div>
       )}
 
@@ -191,51 +193,13 @@ export default function CustomNode({ id, data, selected }) {
       <Handle type="target" position={Position.Left} style={{ background: '#94a3b8', width: 8, height: 8 }} />
       <Handle type="source" position={Position.Right} style={{ background: '#94a3b8', width: 8, height: 8 }} />
       
-      {isEditing ? (
-        <textarea
-          value={label}
+      <div style={{ cursor: 'text' }}>
+        <RichTextEditor
+          content={label}
           onChange={onChange}
-          onBlur={onBlur}
-          onKeyDown={onKeyDown}
-          autoFocus
-          rows={label.split('\n').length || 1}
-          style={{
-            border: 'none',
-            outline: 'none',
-            background: 'transparent',
-            textAlign: 'center',
-            fontSize: '14px',
-            fontFamily: 'Inter, sans-serif',
-            width: '100%',
-            fontWeight: '500',
-            color: 'inherit',
-            resize: 'none',
-            overflow: 'hidden'
-          }}
+          placeholder="Nouvelle idée"
         />
-      ) : (
-        <div style={{ userSelect: 'none', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-          {label.split(/(https?:\/\/[^\s]+)/g).map((part, i) => {
-            if (part.match(/^https?:\/\//)) {
-              return (
-                <a 
-                   key={i} 
-                   href={part} 
-                   target="_blank" 
-                   rel="noopener noreferrer" 
-                   className="nodrag"
-                   onPointerDown={(e) => e.stopPropagation()}
-                   onClick={(e) => e.stopPropagation()}
-                   style={{ color: 'inherit', textDecoration: 'underline', fontWeight: 'bold' }}
-                >
-                  {part}
-                </a>
-              );
-            }
-            return <span key={i}>{part}</span>;
-          })}
-        </div>
-      )}
+      </div>
 
       {selected && (
         <>

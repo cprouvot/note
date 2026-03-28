@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { useReactFlow, NodeResizeControl } from 'reactflow';
+import { Trash2 } from 'lucide-react';
+import RichTextEditor from './RichTextEditor';
 
 export default function TextNode({ id, data, selected }) {
   const [text, setText] = useState(data.text || '');
@@ -7,7 +9,12 @@ export default function TextNode({ id, data, selected }) {
   const [textColor, setTextColor] = useState(data.textColor || 'var(--text-main)');
   const [showColorPalette, setShowColorPalette] = useState(false);
 
-  const { setNodes } = useReactFlow();
+  const { setNodes, deleteElements } = useReactFlow();
+
+  const onDelete = (e) => {
+    e.stopPropagation();
+    deleteElements({ nodes: [{ id }] });
+  };
 
   const updateNodeData = (newData) => {
     setNodes((nds) =>
@@ -20,9 +27,9 @@ export default function TextNode({ id, data, selected }) {
     );
   };
 
-  const onChange = (evt) => {
-    setText(evt.target.value);
-    updateNodeData({ text: evt.target.value });
+  const onChange = (html) => {
+    setText(html);
+    updateNodeData({ text: html });
   };
 
   const increaseSize = () => {
@@ -155,25 +162,25 @@ export default function TextNode({ id, data, selected }) {
                  </div>
                )}
             </div>
+
+            <div style={{ width: '1px', background: 'var(--border-color)', height: '18px', margin: '0 2px' }}></div>
+            <button 
+              onClick={onDelete}
+              style={{
+                background: 'transparent', border: 'none', cursor: 'pointer', padding: '0 4px',
+                color: '#ef4444', display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}
+              title="Supprimer"
+            >
+              <Trash2 size={16} />
+            </button>
           </div>
         )}
   
-        <textarea
-          value={text}
-          onChange={onChange}
-          placeholder="Texte libre..."
-          style={{
-            border: 'none',
-            outline: 'none',
-            background: 'transparent',
-            resize: 'none',
-            fontFamily: 'inherit',
-            fontSize: 'inherit',
-            color: 'inherit',
-            width: '100%',
-            height: '100%',
-            overflow: 'hidden'
-          }}
+        <RichTextEditor
+           content={text}
+           onChange={onChange}
+           placeholder="Texte libre..."
         />
       </div>
     </>
