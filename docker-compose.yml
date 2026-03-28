@@ -3,12 +3,12 @@ version: '3.8'
 services:
   db:
     image: postgres:15-alpine
-    container_name: miro-postgres
+    container_name: mindboard-postgres
     restart: always
     environment:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: adminpassword
-      POSTGRES_DB: mirodb
+      POSTGRES_DB: mindboarddb
     ports:
       - "5432:5432"
     volumes:
@@ -18,19 +18,14 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: miro-backend
+    container_name: mindboard-backend
     restart: always
     ports:
       - "3000:3000"
     environment:
-      - DATABASE_URL=postgresql://admin:adminpassword@db:5432/mirodb?schema=public
+      - DATABASE_URL=postgresql://admin:adminpassword@db:5432/mindboarddb?schema=public
       - JWT_SECRET=votre_secret_inviolable_pour_les_sessions_1234
-      - NODE_ENV=development
-    volumes:
-      - ./backend:/usr/src/app
-      # Conserve le node_modules local à l'intérieur du conteneur indépendamment du bind mount système
-      - /usr/src/app/node_modules
-    command: sh -c "npm install bcryptjs && npm install && npm run dev"
+      - NODE_ENV=production
     depends_on:
       - db
 
@@ -38,16 +33,14 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    container_name: miro-frontend
+      args:
+        # Build argument injecté dynamiquement dans la configuration Vite !
+        - VITE_API_URL=https://mindboard.akabia.fr
+    container_name: mindboard-frontend
     restart: always
     ports:
-      - "5173:5173"
-    environment:
-      - VITE_API_URL=http://localhost:3000
-    volumes:
-      - ./frontend:/usr/src/app
-      - /usr/src/app/node_modules
-    command: sh -c "npm install && npm run dev -- --host"
+      # Port 80 interne de Nginx mappé sur le port 8080 de l'hôte
+      - "8080:80"
     depends_on:
       - backend
 

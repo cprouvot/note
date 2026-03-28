@@ -1,50 +1,61 @@
-# 🧠 Fullstack Mind Mapping & To-Do Studio
+# 🧠 Mindboard - Fullstack Mind Mapping & To-Do Studio
 
-Une application puissante combinant un canevas de Mind Mapping infini et une To-Do List intelligente. Ce projet est conçu pour la gestion de projets visuelle, la structuration d'idées, et le suivi d'objectifs, avec un système de compte utilisateur persistant et une architecture Dockerisée pour faciliter son déploiement sur VPS (OVH ou autre).
+Une application puissante combinant un canevas de Mind Mapping infini et une To-Do List intelligente. Ce projet est conçu pour la gestion de projets visuelle, la structuration d'idées, et le suivi d'objectifs, avec un système de compte utilisateur persistant et une architecture Dockerisée pour faciliter le déploiement.
 
-## ✨ Fonctionnalités Principales
+## 🚀 Guide de Déploiement (Production / VPS)
 
-### 🗺️ Mind Mapping Intéractif (Canvas)
-*   **Canevas Infini** : Déplacez-vous librement et zoomez (Pan & Zoom) sans limites.
-*   **Contrôles Avancés** : Rangement automatique en arbre, gestion de la profondeur (z-index), et liens dynamiques synchronisés.
-*   **Gestion Multi-Cartes** : Onglets (Tabs) pour basculer de projets en 1 clic. Conservées en temps réel en base de données.
+Ce projet est structuré pour être facilement hébergeable, que ce soit via des plateformes PaaS (Render, Railway, Vercel) ou un VPS (OVH, Hetzner) avec Docker. Afin que Antigravity (ou tout autre agent) puisse le déployer avec succès, voici les instructions clés.
 
-### ✅ To-Do List Intelligente
-*   **Catégories Flexibles** : Création et gestion par Drag & Drop via `dnd-kit`.
-*   **Sous-tâches (Indentation)** : Touches `Tab` et `Maj+Tab` pour créer des hiérarchies claires.
-*   **Synchronisation Cloud** : Les requêtes asynchrones enregistrent chaque action directement derrière le pare-feu.
+### 1. Variables d'Environnement (À définir sur l'hébergeur)
 
-### 🔒 Sécurité et Comptes (Nouveau !)
-*   **Sessions Multi-Appareils** : Authentification par email/mot de passe sécurisée (bcrypt) vérifiée avec des JSON Web Tokens (JWT).
-*   **Tableau de bord Administrateur** : Un panneau interne permet aux administrateurs de modérer le site et de supprimer/gouverner des utilisateurs en base.
+L'agent ou le développeur doit s'assurer que les variables suivantes sont configurées :
 
-## 🛠️ Stack Technique
+**Backend (`backend/.env` ou variables d'environnement du serveur) :**
+- `DATABASE_URL` : L'URI de connexion PostgreSQL (ex: `postgresql://user:pass@host:5432/mindboarddb?schema=public`).
+- `JWT_SECRET` : Clé de cryptage sécurisée pour les sessions (ex: `MaSuperCleSecreteDifficileAVoir`).
+- `PORT` : Le port sur lequel l'API tournera (souvent fourni par le PaaS, par défaut `3000`).
 
-*   **Frontend** : React 18 (Vite.js), React Flow, dnd-kit, Lucide React, CSS Vanilla.
-*   **Backend** : Node.js, Express.js.
-*   **Base de Données** : PostgreSQL + Prisma ORM.
-*   **Déploiement** : Docker et Docker Compose.
+**Frontend (`frontend/.env` ou variables d'environnement de build) :**
+- `VITE_API_URL` : L'URL publique du Backend une fois déployé (ex: `https://api.mon-domaine.com`).
+> **Important** : Le frontend étant compilé via Vite, cette variable doit absolument être injectée *au moment du build*.
+
+### 2. Commandes de Build et de Déploiement
+
+Le projet se sépare en deux applications indépendantes. L'agent AI devra idéalement créer deux services distincts :
+
+**Service Backend (Node.js) :**
+- Dossier racine : `backend/`
+- Commande d'installation : `npm install`
+- Déploiement de la BDD : `npx prisma generate && npx prisma db push`
+- Commande de démarrage : `node src/server.js` (ou `npm start` si ajouté au package.json)
+
+**Service Frontend (Static Site / Vercel / Netlify / Render) :**
+- Dossier racine : `frontend/`
+- Commande d'installation : `npm install`
+- Commande de build : `npm run build`
+- Dossier de sortie (Output directory) : `dist/`
+
+### 3. Architecture Technique
+
+*   **Frontend** : React 18 (Vite.js). Architecture "Single Page Application".
+*   **Backend** : Engine Node.js avec Express, architecture REST.
+*   **Base de Données** : PostgreSQL via Prisma ORM pour garantir l'intégrité relationnelle.
 
 ---
 
-## 🚀 Installation & Déploiement (Serveur / VPS / Local)
+## 🛠️ Utilisation en local avec Docker Compose
 
-Le projet utilise **Docker Compose** pour orchestrer dynamiquement 3 conteneurs :
-1. La Base de Données `PostgreSQL`
-2. L'API métier `Node.js`
-3. L'Interface Web `React Vite`
-
-**Pré-requis** : Avoir Docker installé (ou OrbStack sur macOS).
+L'environnement local en cours de développement offre déjà la version dockerisée complète orchestrée via `docker-compose.yml`.
 
 1. Clonez ce dépôt.
-2. Démarrez conjointement l'infrastructure entière en arrière-plan :
+2. Démarrez conjointement l'infrastructure entière (Front, Back, BDD) en tâche de fond :
    ```bash
    docker compose up --build -d
    ```
-3. Poussez la structure relationnelle de Prisma dans la base de données fraichement créée :
+3. Poussez la structure relationnelle de Prisma dans la base de données :
    ```bash
-   docker exec miro-backend npx prisma db push
+   docker exec mindboard-backend npx prisma db push
    ```
-4. 🎉 **C'est prêt !** Accédez à l'application web via votre navigateur sur `http://localhost:5173/`.
+4. 🎉 L'application est prête ! Accédez-y sur `http://localhost:8080/`.
 
-> *Tips : Pour arrêter silencieusement le projet, tapez simplement `docker compose down`.*
+*Pour stopper silencieusement et économiser les ressources, tapez : `docker compose down`.*

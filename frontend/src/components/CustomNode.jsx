@@ -142,7 +142,7 @@ export default function CustomNode({ id, data, selected }) {
           top: '-40px',
           left: '50%',
           transform: 'translateX(-50%)',
-          background: 'white',
+          background: 'var(--node-bg)',
           borderRadius: '6px',
           boxShadow: 'var(--shadow-md)',
           border: '1px solid var(--border-color)',
@@ -159,7 +159,7 @@ export default function CustomNode({ id, data, selected }) {
                style={{ width: '20px', height: '20px', backgroundColor: bgColor, borderRadius: '4px', border: '1px solid #cbd5e1', cursor: 'pointer', padding: 0 }}
              />
              {showBgPalette && (
-               <div style={{ position: 'absolute', top: '28px', left: '-20px', background: 'white', padding: '6px', borderRadius: '6px', boxShadow: 'var(--shadow-lg)', border: '1px solid var(--border-color)', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', zIndex: 100 }}>
+               <div style={{ position: 'absolute', top: '28px', left: '-20px', background: 'var(--panel-bg)', padding: '6px', borderRadius: '6px', boxShadow: 'var(--shadow-lg)', border: '1px solid var(--border-color)', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px', zIndex: 100 }}>
                  {['#ffffff', '#fecaca', '#fef08a', '#bbf7d0', '#bfdbfe', '#e9d5ff'].map(c => (
                    <button key={c} onClick={(e) => { e.stopPropagation(); setBgColor(c); updateNodeData({ bgColor: c }); setShowBgPalette(false); }} style={{ width: '20px', height: '20px', background: c, border: '1px solid #cbd5e1', borderRadius: '50%', cursor: 'pointer', padding: 0 }} />
                  ))}
@@ -177,7 +177,7 @@ export default function CustomNode({ id, data, selected }) {
                style={{ width: '16px', height: '16px', backgroundColor: textColor, borderRadius: '4px', border: '1px solid #cbd5e1', cursor: 'pointer', padding: 0 }}
              />
              {showTextPalette && (
-               <div style={{ position: 'absolute', top: '28px', left: '-10px', background: 'white', padding: '6px', borderRadius: '6px', boxShadow: 'var(--shadow-lg)', border: '1px solid var(--border-color)', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px', zIndex: 100 }}>
+               <div style={{ position: 'absolute', top: '28px', left: '-10px', background: 'var(--panel-bg)', padding: '6px', borderRadius: '6px', boxShadow: 'var(--shadow-lg)', border: '1px solid var(--border-color)', display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '6px', zIndex: 100 }}>
                  {['#0f172a', '#ffffff', '#7f1d1d', '#1e3a8a'].map(c => (
                    <button key={c} onClick={(e) => { e.stopPropagation(); setTextColor(c); updateNodeData({ textColor: c }); setShowTextPalette(false); }} style={{ width: '20px', height: '20px', background: c, border: '1px solid #cbd5e1', borderRadius: '4px', cursor: 'pointer', padding: 0 }} />
                  ))}

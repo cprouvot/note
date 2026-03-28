@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { ListTodo, X, Menu, User } from 'lucide-react';
+import { ListTodo, X, Menu, User, Moon, Sun } from 'lucide-react';
 /* CSS imported in MindMap */
 import './index.css';
 import './App.css';
@@ -10,9 +10,9 @@ import Login from './components/Login';
 import AdminPanel from './components/AdminPanel';
 
 function App() {
-  const [token, setToken] = useState(localStorage.getItem('miro_token'));
+  const [token, setToken] = useState(localStorage.getItem('mindboard_token'));
   const [user, setUser] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('miro_user')); } catch { return null; }
+    try { return JSON.parse(localStorage.getItem('mindboard_user')); } catch { return null; }
   });
 
   const [sidebarWidth, setSidebarWidth] = useState(380);
@@ -20,6 +20,12 @@ function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [showAdmin, setShowAdmin] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [theme, setTheme] = useState(() => localStorage.getItem('mindboard_theme') || 'light');
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('mindboard_theme', theme);
+  }, [theme]);
 
   const startResizing = useCallback((e) => {
     e.preventDefault();
@@ -57,8 +63,8 @@ function App() {
   }
 
   const handleLogout = () => {
-    localStorage.removeItem('miro_token');
-    localStorage.removeItem('miro_user');
+    localStorage.removeItem('mindboard_token');
+    localStorage.removeItem('mindboard_user');
     setToken(null);
     setUser(null);
   };
@@ -79,7 +85,7 @@ function App() {
               onClick={() => setMenuOpen(!menuOpen)}
               title="Menu Utilisateur"
               style={{
-                background: 'white',
+                background: 'var(--panel-bg)',
                 color: 'var(--text-main)',
                 border: '1px solid var(--border-color)',
                 borderRadius: '6px',
@@ -104,7 +110,7 @@ function App() {
                 top: '100%',
                 right: '0',
                 marginTop: '8px',
-                background: 'white',
+                background: 'var(--panel-bg)',
                 border: '1px solid var(--border-color)',
                 borderRadius: '8px',
                 boxShadow: 'var(--shadow-lg)',
@@ -156,11 +162,39 @@ function App() {
           </div>
 
           <button 
+            className="toggle-theme-btn" 
+            title={theme === 'light' ? 'Activer le mode sombre' : 'Activer le mode clair'}
+            onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
+            style={{
+              background: 'var(--panel-bg)',
+              color: 'var(--text-main)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '6px',
+              width: '36px',
+              height: '36px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              boxShadow: 'var(--shadow-sm)',
+              transition: 'all 0.15s ease',
+            }}
+            onMouseEnter={(e) => {
+               e.currentTarget.style.transform = 'scale(1.05)';
+            }}
+            onMouseLeave={(e) => {
+               e.currentTarget.style.transform = 'scale(1)';
+            }}
+          >
+            {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
+          </button>
+
+          <button 
             className="toggle-sidebar-btn" 
             title={isSidebarOpen ? "Fermer la liste des tâches" : "Ouvrir la liste des tâches"}
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
             style={{
-              background: isSidebarOpen ? 'white' : 'var(--primary)',
+              background: isSidebarOpen ? 'var(--panel-bg)' : 'var(--primary)',
               color: isSidebarOpen ? 'var(--text-main)' : 'white',
               border: isSidebarOpen ? '1px solid var(--border-color)' : 'none',
               borderRadius: '6px',

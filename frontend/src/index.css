@@ -14,6 +14,31 @@
   --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
 }
 
+[data-theme='dark'] {
+  --bg-color: #0f172a;
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --border-color: #334155;
+  --primary: #3b82f6;
+  --primary-hover: #60a5fa;
+  --panel-bg: #1e293b;
+  --node-bg: #1e293b;
+  --node-border: #475569;
+  --done-color: #22c55e;
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.5);
+}
+
+[data-theme='dark'] .react-flow__minimap {
+  background-color: var(--panel-bg);
+  border-color: var(--border-color);
+}
+[data-theme='dark'] .react-flow__minimap-mask {
+  fill: rgba(15, 23, 42, 0.6);
+}
+[data-theme='dark'] .react-flow__minimap-node {
+  fill: #64748b;
+}
 * {
   box-sizing: border-box;
 }

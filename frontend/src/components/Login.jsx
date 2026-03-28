@@ -14,8 +14,8 @@ export default function Login({ setToken, setUser }) {
     setLoading(true);
     try {
       const data = await api.login(email, password);
-      localStorage.setItem('miro_token', data.token);
-      localStorage.setItem('miro_user', JSON.stringify(data.user));
+      localStorage.setItem('mindboard_token', data.token);
+      localStorage.setItem('mindboard_user', JSON.stringify(data.user));
       setToken(data.token);
       setUser(data.user);
     } catch (err) {

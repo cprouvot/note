@@ -1,19 +1,27 @@
-# Development Dockerfile
-FROM node:20-alpine
+# Stage 1: Build Image
+FROM node:20-alpine AS builder
 
 WORKDIR /usr/src/app
 
-# Copie des fichiers de configuration
 COPY package*.json ./
-
-# Installation des dépendances
 RUN npm install
 
-# Copie du code source
 COPY . .
 
-# Le port par défaut de Vite
-EXPOSE 5173
+# Définition de la variable VITE_API_URL au moment du 빌드 (build-time)
+ARG VITE_API_URL
+ENV VITE_API_URL=$VITE_API_URL
 
-# Lancement de Vite avec host 0.0.0.0 pour l'exposition sur Orbstack
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0"]
+RUN npm run build
+
+# Stage 2: Production Nginx Image
+FROM nginx:alpine
+
+# Remplacement de la configuration Nginx par défaut
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# Copie des fichiers compilés React de l'étape 1 vers le conteneur web Nginx
+COPY --from=builder /usr/src/app/dist /usr/share/nginx/html
+
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]

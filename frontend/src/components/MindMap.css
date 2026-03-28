@@ -17,7 +17,7 @@
 }
 
 .board-tab {
-  background-color: #cbd5e1;
+  background-color: var(--border-color);
   border: 1px solid #94a3b8;
   border-bottom: none;
   border-radius: 8px 8px 0 0;
@@ -85,7 +85,7 @@
 .add-board-btn:hover {
   border-color: var(--primary);
   color: var(--primary);
-  background: white;
+  background: var(--panel-bg);
 }
 
 .reactflow-wrapper {
@@ -118,13 +118,13 @@
 }
 
 .toolbar-btn:hover {
-  background-color: #f1f5f9;
+  background-color: var(--bg-color);
   color: var(--primary);
 }
 
 /* Context Menu */
 .context-menu {
-  background: white;
+  background: var(--panel-bg);
   border: 1px solid var(--border-color);
   box-shadow: var(--shadow-md);
   border-radius: 6px;
@@ -148,7 +148,7 @@
 }
 
 .context-menu-btn:hover {
-  background-color: #f1f5f9;
+  background-color: var(--bg-color);
   color: var(--primary);
 }
 

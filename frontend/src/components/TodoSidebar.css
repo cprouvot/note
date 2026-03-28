@@ -92,17 +92,17 @@
 
 .export-category-btn:hover {
   color: var(--primary);
-  background-color: #f1f5f9;
+  background-color: var(--bg-color);
 }
 
 .clear-category-btn:hover {
   color: #eab308;
-  background-color: #fef3c7;
+  background-color: rgba(234, 179, 8, 0.1);
 }
 
 .delete-category-btn:hover {
   color: #ef4444;
-  background-color: #fee2e2;
+  background-color: rgba(239, 68, 68, 0.1);
 }
 
 .task-list {
@@ -118,11 +118,11 @@
   align-items: flex-start;
   justify-content: space-between;
   border-radius: 4px;
-  background-color: white;
+  background-color: transparent;
 }
 
 .task-item:hover {
-  background-color: #f8fafc;
+  background-color: var(--bg-color);
 }
 
 .task-item:hover .delete-task-btn, .task-item:hover .drag-handle {
@@ -182,7 +182,7 @@
 }
 
 .task-inline-input:focus {
-  background-color: white;
+  background-color: var(--bg-color);
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
 }
 
@@ -208,7 +208,7 @@
 }
 
 .delete-task-btn:hover {
-  background-color: #fee2e2;
+  background-color: rgba(239, 68, 68, 0.1);
 }
 
 .empty-category-dropzone {
@@ -223,7 +223,7 @@
 
 .empty-category-dropzone.is-over {
   border-color: var(--primary);
-  background-color: #eff6ff;
+  background-color: rgba(59, 130, 246, 0.1);
   color: var(--primary);
 }
 
@@ -246,7 +246,7 @@
 
 .category-add-task-inline:hover {
   color: var(--primary);
-  background-color: #f1f5f9;
+  background-color: var(--bg-color);
 }
 
 .add-category-wrapper {
@@ -269,7 +269,7 @@
 
 .category-input:focus {
   color: var(--text-main);
-  background: #f8fafc;
+  background: var(--bg-color);
   border-radius: 4px;
 }
 

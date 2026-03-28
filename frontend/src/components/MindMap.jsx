@@ -8,23 +8,27 @@ import ReactFlow, {
   applyNodeChanges, 
   applyEdgeChanges,
   ReactFlowProvider,
-  useReactFlow
+  useReactFlow,
+  getRectOfNodes
 } from 'reactflow';
-import { Plus, Square, Type } from 'lucide-react';
+import { Plus, Square, Type, Map, Camera, Image as ImageIcon } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, horizontalListSortingStrategy, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { toPng } from 'html-to-image';
 import 'reactflow/dist/style.css';
 import CustomNode from './CustomNode';
 import RectangleNode from './RectangleNode';
 import TextNode from './TextNode';
+import ImageNode from './ImageNode';
 import { api } from '../api';
 import './MindMap.css';
 
 const nodeTypes = {
   custom: CustomNode,
   rectangle: RectangleNode,
-  text: TextNode
+  text: TextNode,
+  image: ImageNode
 };
 
 const defaultNodes = [
@@ -77,8 +81,112 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
   const [nodes, setNodes] = useState(activeBoard.nodes || defaultNodes);
   const [edges, setEdges] = useState(activeBoard.edges || defaultEdges);
   const [menu, setMenu] = useState(null);
+  const [showMiniMap, setShowMiniMap] = useState(() => {
+    const saved = localStorage.getItem('mindboard_minimap');
+    return saved !== null ? JSON.parse(saved) : false;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('mindboard_minimap', JSON.stringify(showMiniMap));
+  }, [showMiniMap]);
   
   const dragCache = useRef(null);
+  const fileInputRef = useRef(null);
+
+  const compressImage = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target.result;
+        img.onload = () => {
+          const MAX_WIDTH = 1024;
+          const MAX_HEIGHT = 1024;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+               height *= MAX_WIDTH / width;
+               width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+               width *= MAX_HEIGHT / height;
+               height = MAX_HEIGHT;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // WebP has great compression ratio
+          const dataUrl = canvas.toDataURL('image/webp', 0.85); 
+          resolve({ dataUrl, width, height });
+        };
+        img.onerror = (err) => reject(err);
+      };
+      reader.onerror = (err) => reject(err);
+    });
+  };
+
+  const handleImageUpload = async (file, flowPosition = null) => {
+    if (!file || !file.type.startsWith('image/')) return;
+    try {
+      const { dataUrl, width, height } = await compressImage(file);
+      
+      const currentZs = nodes.map(n => n.zIndex || 0);
+      const maxZ = currentZs.length > 0 ? Math.max(...currentZs) : 0;
+      
+      const defaultCenter = { x: 300, y: 300 }; // Fallback if no specific drop position
+
+      const newNode = {
+         id: `node_img_${Date.now()}`,
+         type: 'image',
+         position: flowPosition || defaultCenter,
+         data: { src: dataUrl },
+         zIndex: maxZ + 1,
+         style: { 
+           width: Math.min(width, 400), 
+           height: Math.min(height, 400 * height / width) 
+         }
+      };
+      
+      setNodes(nds => [...nds.map(n => ({...n, selected: false})), { ...newNode, selected: true }]);
+    } catch (err) {
+      console.error("Erreur d'import d'image", err);
+    }
+  };
+
+  const onFileInputChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) handleImageUpload(file);
+    // Reset input
+    e.target.value = null;
+  };
+
+  const { screenToFlowPosition } = useReactFlow();
+
+  const onDragOver = useCallback((event) => {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
+  }, []);
+
+  const onDrop = useCallback((event) => {
+    event.preventDefault();
+    if (event.dataTransfer.files && event.dataTransfer.files.length > 0) {
+      const file = event.dataTransfer.files[0];
+      const position = screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      });
+      handleImageUpload(file, position);
+    }
+  }, [screenToFlowPosition, nodes]);
 
   // Unnecessary useEffect loop removed - Canvas mounts and unmounts cleanly with ReactFlowProvider keys.
 
@@ -94,6 +202,38 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
        return () => clearTimeout(timer);
     }
   }, [nodes, edges, activeBoardId]);
+
+  const onDownload = async () => {
+    if (nodes.length === 0) return;
+    const viewport = document.querySelector('.react-flow__viewport');
+    if (!viewport) return;
+
+    try {
+      const nodesBounds = getRectOfNodes(nodes);
+      const padding = 100;
+      const imageWidth = nodesBounds.width + padding * 2;
+      const imageHeight = nodesBounds.height + padding * 2;
+      const isDarkMode = document.documentElement.getAttribute('data-theme') === 'dark';
+      
+      const dataUrl = await toPng(viewport, {
+        backgroundColor: isDarkMode ? '#0f172a' : '#f8fafc',
+        width: imageWidth,
+        height: imageHeight,
+        style: {
+          width: imageWidth + 'px',
+          height: imageHeight + 'px',
+          transform: `translate(${-nodesBounds.x + padding}px, ${-nodesBounds.y + padding}px) scale(1)`,
+        },
+      });
+
+      const link = document.createElement('a');
+      link.download = `mindboard-export-${new Date().toISOString().slice(0, 10)}.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch (err) {
+      console.error("Erreur lors de l'export PNG", err);
+    }
+  };
 
   const onNodesChange = useCallback(
     (changes) => setNodes((nds) => applyNodeChanges(changes, nds)),
@@ -138,7 +278,7 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
 
   const onNodeDrag = useCallback((event, node) => {
     let hoverTargetId = null;
-    const intersections = getIntersectingNodes(node).filter(n => n.id !== node.id);
+    const intersections = getIntersectingNodes(node).filter(n => n.id !== node.id && n.type === 'custom' && node.type === 'custom');
     
     if (intersections.length > 0) {
       const target = intersections[0];
@@ -193,7 +333,7 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
     }
     dragCache.current = null;
 
-    const intersections = getIntersectingNodes(node).filter(n => n.id !== node.id);
+    const intersections = getIntersectingNodes(node).filter(n => n.id !== node.id && n.type === 'custom' && node.type === 'custom');
     let newParent = null;
 
     const currentEdges = getEdges();
@@ -400,6 +540,8 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
         onNodeDragStop={onNodeDragStop}
         onNodeContextMenu={onNodeContextMenu}
         onPaneClick={onPaneClick}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
         nodeTypes={nodeTypes}
         fitView={true}
         fitViewOptions={{ padding: 0.15, maxZoom: 1.2 }}
@@ -408,7 +550,7 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
       >
         <Background color="#cbd5e1" gap={20} size={1.5} />
         <Controls />
-        <MiniMap />
+        {showMiniMap && <MiniMap />}
         
         <Panel position="top-left" className="toolbar-panel">
           <button className="toolbar-btn" onClick={() => addNode('custom')} title="Ajouter une idée structurée">
@@ -419,6 +561,30 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
           </button>
           <button className="toolbar-btn" onClick={() => addNode('text')} title="Ajouter un texte libre">
             <Type size={18} />
+          </button>
+          
+          <button className="toolbar-btn" onClick={() => fileInputRef.current?.click()} title="Ajouter une image">
+            <ImageIcon size={18} />
+          </button>
+          <input 
+            type="file" 
+            ref={fileInputRef} 
+            onChange={onFileInputChange} 
+            accept="image/*" 
+            style={{ display: 'none' }} 
+          />
+          
+          <button className="toolbar-btn" onClick={onDownload} title="Exporter la carte en Image (PNG)">
+            <Camera size={18} />
+          </button>
+          
+          <button 
+            className="toolbar-btn" 
+            onClick={() => setShowMiniMap(!showMiniMap)} 
+            title={showMiniMap ? "Masquer la Mini-Map" : "Afficher la Mini-Map"}
+            style={{ color: showMiniMap ? 'var(--primary)' : 'var(--text-muted)' }}
+          >
+            <Map size={18} />
           </button>
         </Panel>
       </ReactFlow>

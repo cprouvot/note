@@ -1,7 +1,7 @@
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3000') + '/api';
 
 const getHeaders = () => {
-  const token = localStorage.getItem('miro_token');
+  const token = localStorage.getItem('mindboard_token');
   return {
     'Content-Type': 'application/json',
     ...(token ? { 'Authorization': `Bearer ${token}` } : {})
@@ -24,7 +24,7 @@ export const api = {
   getBoards: async () => {
     const res = await fetch(`${API_URL}/boards`, { headers: getHeaders() });
     if (res.status === 401 || res.status === 403) {
-      localStorage.removeItem('miro_token'); // Auto logout on expiration
+      localStorage.removeItem('mindboard_token'); // Auto logout on expiration
       throw new Error('Unauthorized');
     }
     return res.json();
