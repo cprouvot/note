@@ -23,11 +23,20 @@ export default function RichTextEditor({ content, onChange, placeholder = 'Tapez
       Placeholder.configure({
         placeholder: placeholder,
         emptyEditorClass: 'is-editor-empty',
+        showOnlyWhenEditable: false,
       }),
       TextAlign.configure({
         types: ['heading', 'paragraph'],
       }),
     ],
+    editorProps: {
+      attributes: {
+        'data-gramm': 'false',
+        'data-gramm_editor': 'false',
+        'data-enable-grammarly': 'false',
+        spellcheck: 'false',
+      },
+    },
     content: content || '',
     editable: !readOnly,
     onUpdate: ({ editor }) => {
@@ -43,6 +52,17 @@ export default function RichTextEditor({ content, onChange, placeholder = 'Tapez
     }
   }, [content, editor]);
 
+  // Synchroniser dynamiquement readOnly (car isEditable de Tiptap n'est défini qu'à l'init par défaut)
+  useEffect(() => {
+    if (editor && editor.isEditable === readOnly) {
+      editor.setEditable(!readOnly);
+      if (!readOnly) {
+        // Quand on passe en édition, on auto-focus à la fin du texte
+        setTimeout(() => editor.commands.focus('end'), 10);
+      }
+    }
+  }, [readOnly, editor]);
+
   if (!editor) {
     return null;
   }
@@ -54,7 +74,10 @@ export default function RichTextEditor({ content, onChange, placeholder = 'Tapez
     <div 
       className={`rich-text-editor nodrag nopan ${className}`}
       onKeyDown={(e) => {
-        // Bloque le raccourci global si on tape Z dans l'éditeur :
+        // Laisser passer le Tab pour la création rapide de nœuds dans le canva
+        if (e.key === 'Tab') return;
+        
+        // Bloque la propagation des autres touches standards (éviter Undo/Redo/Delete du store global reactflow)
         if (!e.metaKey && !e.ctrlKey) {
             e.stopPropagation();
         }

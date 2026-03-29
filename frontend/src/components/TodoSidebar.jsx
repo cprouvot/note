@@ -17,6 +17,106 @@ function DroppableEmptyCategory({ categoryId }) {
   );
 }
 
+function ContentEditableTask({ task, updateTaskText, handleTaskKeyDown }) {
+  const divRef = React.useRef(null);
+  const isFirstRender = React.useRef(true);
+  
+  React.useEffect(() => {
+    if (divRef.current) {
+      if (document.activeElement !== divRef.current || isFirstRender.current) {
+        if (divRef.current.innerHTML !== task.text) {
+          divRef.current.innerHTML = task.text;
+        }
+      }
+      isFirstRender.current = false;
+    }
+  }, [task.text]);
+
+  return (
+    <div 
+      ref={divRef}
+      id={`task-input-${task.id}`}
+      contentEditable={true}
+      suppressContentEditableWarning={true}
+      spellCheck={false}
+      data-gramm="false"
+      data-gramm_editor="false"
+      data-enable-grammarly="false"
+      onInput={(e) => {
+        updateTaskText(task.id, e.currentTarget.innerHTML);
+      }}
+      onKeyDown={(e) => handleTaskKeyDown(e, task.id)}
+      onPaste={(e) => {
+        e.preventDefault();
+        const text = e.clipboardData.getData('text/plain');
+        document.execCommand('insertText', false, text);
+      }}
+      className="task-inline-input content-editable-task"
+      data-placeholder="Tâche..."
+    />
+  );
+}
+
+function EditableCategoryTitle({ category, categories, saveCategories, tasks, setTasks }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState(category);
+
+  const handleSave = async () => {
+    const newName = editText.trim();
+    if (newName && newName !== category && !categories.includes(newName)) {
+      // Replace category in the categories array
+      const newCats = categories.map(c => c === category ? newName : c);
+      saveCategories(newCats);
+
+      // Update local tasks
+      setTasks(currentTasks => currentTasks.map(t => t.category === category ? { ...t, category: newName } : t));
+      
+      // Update tasks in backend
+      const affectedTasks = tasks.filter(t => t.category === category);
+      Promise.all(affectedTasks.map(t => api.updateTask(t.id, { ...t, category: newName }))).catch(console.error);
+    } else {
+      setEditText(category);
+    }
+    setIsEditing(false);
+  };
+
+  if (isEditing) {
+    return (
+      <input
+        autoFocus
+        value={editText}
+        onChange={e => setEditText(e.target.value)}
+        onBlur={handleSave}
+        onKeyDown={e => {
+           if (e.key === 'Enter') handleSave();
+           else if (e.key === 'Escape') { setEditText(category); setIsEditing(false); }
+        }}
+        style={{
+          fontSize: '15px',
+          fontWeight: '600',
+          color: 'var(--text-main)',
+          background: 'transparent',
+          border: '1px solid var(--primary)',
+          borderRadius: '4px',
+          padding: '0 4px',
+          outline: 'none',
+          width: '150px'
+        }}
+      />
+    );
+  }
+
+  return (
+    <h3 
+      onClick={() => setIsEditing(true)} 
+      title="Cliquer pour renommer"
+      style={{ cursor: 'pointer', margin: 0 }}
+    >
+      {category}
+    </h3>
+  );
+}
+
 function BasicTaskItem({ task, toggleTask, removeTask, updateTaskText, handleTaskKeyDown }) {
   const style = {
     paddingLeft: `${(task.indentLevel || 0) * 24}px`,
@@ -25,22 +125,18 @@ function BasicTaskItem({ task, toggleTask, removeTask, updateTaskText, handleTas
 
   return (
     <li style={style} className={`task-item done`}>
-      <label className="task-checkbox-label">
+      <div className="task-checkbox-label">
         <input 
           type="checkbox" 
           checked={task.done} 
           onChange={() => toggleTask(task.id)}
         />
-        <input 
-          id={`task-input-${task.id}`}
-          type="text"
-          value={task.text}
-          onChange={(e) => updateTaskText(task.id, e.target.value)}
-          onKeyDown={(e) => handleTaskKeyDown(e, task.id)}
-          className="task-inline-input"
-          placeholder="Tâche..."
+        <ContentEditableTask 
+          task={task} 
+          updateTaskText={updateTaskText} 
+          handleTaskKeyDown={handleTaskKeyDown} 
         />
-      </label>
+      </div>
       <button className="delete-task-btn" onClick={() => removeTask(task.id)} title="Supprimer la tâche">
         <Trash2 size={14} />
       </button>
@@ -65,22 +161,18 @@ function SortableTaskItem({ task, toggleTask, removeTask, updateTaskText, handle
       <div className="drag-handle" {...attributes} {...listeners}>
         <GripVertical size={14} color="#94a3b8" />
       </div>
-      <label className="task-checkbox-label">
+      <div className="task-checkbox-label">
         <input 
           type="checkbox" 
           checked={task.done} 
           onChange={() => toggleTask(task.id)}
         />
-        <input 
-          id={`task-input-${task.id}`}
-          type="text"
-          value={task.text}
-          onChange={(e) => updateTaskText(task.id, e.target.value)}
-          onKeyDown={(e) => handleTaskKeyDown(e, task.id)}
-          className="task-inline-input"
-          placeholder="Tâche..."
+        <ContentEditableTask 
+          task={task} 
+          updateTaskText={updateTaskText} 
+          handleTaskKeyDown={handleTaskKeyDown} 
         />
-      </label>
+      </div>
       <button className="delete-task-btn" onClick={() => removeTask(task.id)} title="Supprimer la tâche">
         <Trash2 size={14} />
       </button>
@@ -193,23 +285,33 @@ export default function TodoSidebar() {
     } else if (e.key === 'ArrowUp') {
       e.preventDefault();
       const inputs = Array.from(document.querySelectorAll('.task-inline-input'));
-      const index = inputs.indexOf(e.target);
+      const index = inputs.indexOf(e.currentTarget);
       if (index > 0) {
-        inputs[index - 1].focus();
+        const prevInput = inputs[index - 1];
+        prevInput.focus();
         setTimeout(() => {
-           const val = inputs[index - 1].value;
-           inputs[index - 1].setSelectionRange(val.length, val.length);
+           const range = document.createRange();
+           const sel = window.getSelection();
+           range.selectNodeContents(prevInput);
+           range.collapse(false);
+           sel.removeAllRanges();
+           sel.addRange(range);
         }, 0);
       }
     } else if (e.key === 'ArrowDown') {
       e.preventDefault();
       const inputs = Array.from(document.querySelectorAll('.task-inline-input'));
-      const index = inputs.indexOf(e.target);
+      const index = inputs.indexOf(e.currentTarget);
       if (index !== -1 && index < inputs.length - 1) {
-        inputs[index + 1].focus();
+        const nextInput = inputs[index + 1];
+        nextInput.focus();
         setTimeout(() => {
-           const val = inputs[index + 1].value;
-           inputs[index + 1].setSelectionRange(val.length, val.length);
+           const range = document.createRange();
+           const sel = window.getSelection();
+           range.selectNodeContents(nextInput);
+           range.collapse(false);
+           sel.removeAllRanges();
+           sel.addRange(range);
         }, 0);
       }
     }
@@ -368,7 +470,13 @@ export default function TodoSidebar() {
             return (
               <div key={category} className="category-section">
                 <div className="category-header">
-                  <h3>{category}</h3>
+                  <EditableCategoryTitle 
+                    category={category}
+                    categories={categories}
+                    saveCategories={saveCategories}
+                    tasks={tasks}
+                    setTasks={setTasks}
+                  />
                   <div className="category-actions">
                     <button 
                       className="export-category-btn" 

@@ -9,6 +9,7 @@
   display: flex;
   flex-wrap: nowrap;
   overflow-x: auto;
+  overflow-y: hidden;
   align-items: center;
   background-color: var(--border-color);
   padding: 8px 16px 0 16px;

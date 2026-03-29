@@ -8,7 +8,17 @@ export default function RectangleNode({ id, data, selected }) {
   const [textColor, setTextColor] = useState(data.textColor || '#000000');
   const [showColorPalette, setShowColorPalette] = useState(false);
   const [showTextPalette, setShowTextPalette] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const { setNodes, deleteElements } = useReactFlow();
+
+  React.useEffect(() => {
+    if (!selected && isEditing) setIsEditing(false);
+  }, [selected, isEditing]);
+
+  const onDoubleClick = (e) => {
+    e.stopPropagation();
+    if (!data.locked) setIsEditing(true);
+  };
 
   const onDelete = (e) => {
     e.stopPropagation();
@@ -99,7 +109,9 @@ export default function RectangleNode({ id, data, selected }) {
         </NodeResizeControl>
       )}
       
-      <div style={{
+      <div 
+        onDoubleClick={onDoubleClick}
+        style={{
         borderRadius: '8px',
         background: color,
         border: `2px solid ${selected ? 'var(--primary)' : 'transparent'}`,
@@ -109,9 +121,10 @@ export default function RectangleNode({ id, data, selected }) {
         minWidth: '150px',
         minHeight: '100px',
         position: 'relative',
+        cursor: isEditing ? 'text' : (!data.locked ? 'pointer' : 'default'),
         transition: 'border 0.2s'
       }}>
-        {selected && (
+        {selected && !isEditing && (
           <div style={{ position: 'absolute', top: '8px', right: '8px', zIndex: 10, display: 'flex', gap: '8px' }}>
             <button 
               onClick={onToggleLock}
@@ -210,11 +223,11 @@ export default function RectangleNode({ id, data, selected }) {
           </div>
         )}
         
-        <div style={{ padding: '16px', height: '100%', boxSizing: 'border-box', color: textColor }}>
+        <div style={{ padding: '16px', height: '100%', boxSizing: 'border-box', color: textColor, pointerEvents: isEditing ? 'auto' : 'none' }}>
           <RichTextEditor 
              content={data.text} 
              onChange={onTextChange} 
-             readOnly={data.locked}
+             readOnly={data.locked || !isEditing}
              placeholder=""
           />
         </div>

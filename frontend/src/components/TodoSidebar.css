@@ -186,6 +186,20 @@
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
 }
 
+.content-editable-task {
+  min-height: 20px;
+  cursor: text;
+  word-break: break-word;
+}
+
+.content-editable-task:empty:before,
+.content-editable-task:has(br:only-child):before {
+  content: attr(data-placeholder);
+  color: #94a3b8;
+  pointer-events: none;
+  display: block;
+}
+
 .task-item.done .task-inline-input {
   color: var(--text-muted);
   text-decoration: line-through;

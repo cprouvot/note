@@ -9,7 +9,17 @@ export default function CustomNode({ id, data, selected }) {
   const [textColor, setTextColor] = useState(data.textColor || '#0f172a');
   const [showBgPalette, setShowBgPalette] = useState(false);
   const [showTextPalette, setShowTextPalette] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const { setNodes, setEdges, getNodes, getEdges, deleteElements } = useReactFlow();
+
+  useEffect(() => {
+    if (!selected && isEditing) setIsEditing(false);
+  }, [selected, isEditing]);
+
+  const onDoubleClick = (e) => {
+    e.stopPropagation();
+    setIsEditing(true);
+  };
 
   const onChange = (html) => {
      setLabel(html);
@@ -110,7 +120,9 @@ export default function CustomNode({ id, data, selected }) {
   }, [selected, id, setNodes, setEdges, getNodes, label, bgColor, textColor]);
 
   return (
-    <div style={{
+    <div 
+      onDoubleClick={onDoubleClick}
+      style={{
       padding: '8px 16px',
       borderRadius: '8px',
       background: bgColor,
@@ -123,12 +135,12 @@ export default function CustomNode({ id, data, selected }) {
       textAlign: 'center',
       fontWeight: '500',
       position: 'relative',
-      cursor: 'pointer',
+      cursor: isEditing ? 'text' : 'pointer',
       transition: 'box-shadow 0.2s, border 0.2s'
     }}>
       
       {/* Floating Toolbar for colors when node is selected */}
-      {selected && (
+      {selected && !isEditing && (
         <div 
           style={{
           position: 'absolute',
@@ -193,15 +205,16 @@ export default function CustomNode({ id, data, selected }) {
       <Handle type="target" position={Position.Left} style={{ background: '#94a3b8', width: 8, height: 8 }} />
       <Handle type="source" position={Position.Right} style={{ background: '#94a3b8', width: 8, height: 8 }} />
       
-      <div style={{ cursor: 'text' }}>
+      <div style={{ cursor: isEditing ? 'text' : 'pointer', pointerEvents: isEditing ? 'auto' : 'none' }}>
         <RichTextEditor
           content={label}
           onChange={onChange}
           placeholder="Nouvelle idée"
+          readOnly={!isEditing}
         />
       </div>
 
-      {selected && (
+      {selected && !isEditing && (
         <>
           <button 
             onClick={(e) => onAddChild(e, 'left')}

@@ -8,8 +8,18 @@ export default function TextNode({ id, data, selected }) {
   const [fontSize, setFontSize] = useState(data.fontSize || 16);
   const [textColor, setTextColor] = useState(data.textColor || 'var(--text-main)');
   const [showColorPalette, setShowColorPalette] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
 
   const { setNodes, deleteElements } = useReactFlow();
+
+  React.useEffect(() => {
+    if (!selected && isEditing) setIsEditing(false);
+  }, [selected, isEditing]);
+
+  const onDoubleClick = (e) => {
+    e.stopPropagation();
+    setIsEditing(true);
+  };
 
   const onDelete = (e) => {
     e.stopPropagation();
@@ -80,7 +90,9 @@ export default function TextNode({ id, data, selected }) {
         </div>
       </NodeResizeControl>
 
-      <div style={{
+      <div 
+        onDoubleClick={onDoubleClick}
+        style={{
         position: 'relative',
         padding: '4px',
         fontSize: `${fontSize}px`,
@@ -91,9 +103,10 @@ export default function TextNode({ id, data, selected }) {
         minWidth: '50px',
         minHeight: '30px',
         border: selected ? '1px dashed var(--primary)' : '1px dashed transparent',
-        background: 'transparent'
+        background: 'transparent',
+        cursor: isEditing ? 'text' : 'pointer'
       }}>
-        {selected && (
+        {selected && !isEditing && (
           <div style={{
             position: 'absolute',
             top: '-38px',
@@ -177,11 +190,14 @@ export default function TextNode({ id, data, selected }) {
           </div>
         )}
   
-        <RichTextEditor
-           content={text}
-           onChange={onChange}
-           placeholder="Texte libre..."
-        />
+        <div style={{ pointerEvents: isEditing ? 'auto' : 'none', width: '100%', height: '100%' }}>
+          <RichTextEditor
+             content={text}
+             onChange={onChange}
+             readOnly={!isEditing}
+             placeholder="Texte libre..."
+          />
+        </div>
       </div>
     </>
   );
