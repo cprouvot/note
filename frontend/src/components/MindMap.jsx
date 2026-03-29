@@ -657,6 +657,7 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
         nodeTypes={nodeTypes}
         fitView={true}
         fitViewOptions={{ padding: 0.15, maxZoom: 1.2 }}
+        minZoom={0.1}
         attributionPosition="bottom-right"
         deleteKeyCode={['Backspace', 'Delete']}
       >
