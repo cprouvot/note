@@ -48,7 +48,10 @@ function ContentEditableTask({ task, updateTaskText, handleTaskKeyDown }) {
       onKeyDown={(e) => handleTaskKeyDown(e, task.id)}
       onPaste={(e) => {
         e.preventDefault();
-        const text = e.clipboardData.getData('text/plain');
+        let text = e.clipboardData.getData('text/plain') || '';
+        // Nettoyage: supprimer le mot "Tâche..." copié accidentellement via le CSS et forcer une seule ligne
+        text = text.replace(/^Tâche\.\.\.\s*\n?/, '');
+        text = text.replace(/[\r\n]+/g, ' ').trim();
         document.execCommand('insertText', false, text);
       }}
       className="task-inline-input content-editable-task"
