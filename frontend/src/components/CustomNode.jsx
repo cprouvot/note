@@ -107,7 +107,17 @@ export default function CustomNode({ id, data, selected }) {
     };
 
     setNodes((nds) => {
-      const resetNodes = nds.map(n => ({ ...n, selected: false }));
+      const resetNodes = nds.map(n => {
+        let shiftedY = n.position.y;
+        // Mouvement "Moïse" : Tout ce qui est en dessous de la zone d'insertion sur le même côté est poussé vers le bas
+        const isOnSameSide = isLeft ? n.position.x < parentNode.position.x + 50 : n.position.x > parentNode.position.x - 50;
+        if (n.id !== parentNode.id && n.id !== newNodeId && isOnSameSide) {
+           if (n.position.y >= newY - 10) {
+               shiftedY += 60; // Crée un espace sécurisé de 60px
+           }
+        }
+        return { ...n, selected: false, position: { ...n.position, y: shiftedY } };
+      });
       return [...resetNodes, { ...newNode, selected: true }];
     });
     setEdges((eds) => [...eds, newEdge]);

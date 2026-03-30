@@ -571,7 +571,17 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
     takeSnapshot();
 
     const getChildrenSubtree = (parentId, inheritedDirection) => {
-      const childEdges = edges.filter(e => e.source === parentId);
+      let childEdges = edges.filter(e => e.source === parentId);
+      
+      // Trier les enfants par leur position Y actuelle pour respecter l'ordre visuel lors du rangement
+      childEdges.sort((a, b) => {
+        const nodeA = nodes.find(n => n.id === a.target);
+        const nodeB = nodes.find(n => n.id === b.target);
+        const yA = nodeA ? nodeA.position.y : 0;
+        const yB = nodeB ? nodeB.position.y : 0;
+        return yA - yB;
+      });
+
       let children = [];
       for (const edge of childEdges) {
         let dir = inheritedDirection || (edge.sourceHandle === 'source-left' ? 'left' : 'right');
