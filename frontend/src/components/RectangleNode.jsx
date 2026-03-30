@@ -25,39 +25,33 @@ export default function RectangleNode({ id, data, selected }) {
     deleteElements({ nodes: [{ id }] });
   };
 
+  const updateNodeData = (newData) => {
+    if (data.updateNodeData) {
+      data.updateNodeData(id, newData);
+    } else {
+      setNodes((nds) =>
+        nds.map((node) => {
+          if (node.id === id) {
+            return { ...node, data: { ...node.data, ...newData } };
+          }
+          return node;
+        })
+      );
+    }
+  };
+
   const onColorChange = (newColor) => {
     setColor(newColor);
-    setNodes((nds) =>
-      nds.map((node) => {
-        if (node.id === id) {
-          node.data = { ...node.data, color: newColor };
-        }
-        return node;
-      })
-    );
+    updateNodeData({ color: newColor });
   };
 
   const onTextColorChange = (newColor) => {
     setTextColor(newColor);
-    setNodes((nds) =>
-      nds.map((node) => {
-        if (node.id === id) {
-          node.data = { ...node.data, textColor: newColor };
-        }
-        return node;
-      })
-    );
+    updateNodeData({ textColor: newColor });
   };
 
   const onTextChange = (html) => {
-    setNodes((nds) =>
-      nds.map((node) => {
-        if (node.id === id) {
-          node.data = { ...node.data, text: html };
-        }
-        return node;
-      })
-    );
+    updateNodeData({ text: html });
   };
 
   const onToggleLock = (e) => {

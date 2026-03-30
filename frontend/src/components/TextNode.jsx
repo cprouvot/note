@@ -27,14 +27,18 @@ export default function TextNode({ id, data, selected }) {
   };
 
   const updateNodeData = (newData) => {
-    setNodes((nds) =>
-      nds.map((node) => {
-        if (node.id === id) {
-          node.data = { ...node.data, ...newData };
-        }
-        return node;
-      })
-    );
+    if (data.updateNodeData) {
+      data.updateNodeData(id, newData);
+    } else {
+      setNodes((nds) =>
+        nds.map((node) => {
+          if (node.id === id) {
+            node.data = { ...node.data, ...newData };
+          }
+          return node;
+        })
+      );
+    }
   };
 
   const onChange = (html) => {

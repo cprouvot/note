@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import ReactFlow, { 
   Background, 
   Controls, 
@@ -11,7 +11,7 @@ import ReactFlow, {
   useReactFlow,
   getRectOfNodes
 } from 'reactflow';
-import { Plus, Square, Type, Map, Camera, Image as ImageIcon, Cloud, CloudUpload, CheckCircle2 } from 'lucide-react';
+import { Plus, Square, Type, Map as MapIcon, Camera, Image as ImageIcon, Cloud, CloudUpload, CheckCircle2 } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, horizontalListSortingStrategy, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -341,7 +341,7 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
   const onConnect = useCallback(
     (connection) => {
       takeSnapshot();
-      setEdges((eds) => addEdge({ ...connection, animated: true, style: { stroke: '#94a3b8', strokeWidth: 2 } }, eds));
+      setEdges((eds) => addEdge({ ...connection, animated: false, style: { stroke: '#94a3b8', strokeWidth: 2 } }, eds));
     },
     [setEdges, takeSnapshot]
   );
@@ -479,7 +479,7 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
           target: node.id,
           sourceHandle: isLeft ? 'source-left' : null,
           targetHandle: isLeft ? 'target-right' : null,
-          animated: true,
+          animated: false,
           style: { stroke: '#94a3b8', strokeWidth: 2 }
         };
         return [...filtered, newEdge];
@@ -639,11 +639,74 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
     setMenu(null);
   };
 
+  const updateNodeData = useCallback((id, newData) => {
+    setNodes(nds => nds.map(n => n.id === id ? { ...n, data: { ...n.data, ...newData } } : n));
+  }, [setNodes]);
+
+  const { visibleNodes, visibleEdges } = useMemo(() => {
+    const hiddenNodes = new Set();
+    const hiddenEdges = new Set();
+    
+    const parentLeftIds = new Set(edges.filter(e => e.sourceHandle === 'source-left').map(e => e.source));
+    const parentRightIds = new Set(edges.filter(e => e.sourceHandle !== 'source-left').map(e => e.source));
+    
+    // Déterminer le côté absolu du noeud (pour affecter tab/shift+tab)
+    const sideMap = new Map();
+    const targetIds = new Set(edges.map(e => e.target));
+    const rootNodes = nodes.filter(n => !targetIds.has(n.id));
+    
+    const assignSide = (parentId, inheritedSide) => {
+       const childEdges = edges.filter(e => e.source === parentId);
+       for (const edge of childEdges) {
+          const childSide = inheritedSide || (edge.sourceHandle === 'source-left' ? 'left' : 'right');
+          sideMap.set(edge.target, childSide);
+          assignSide(edge.target, childSide);
+       }
+    };
+    
+    for (const root of rootNodes) {
+       sideMap.set(root.id, 'root');
+       assignSide(root.id, null);
+    }
+    
+    const hideDescendants = (parentId, side) => {
+      const childEdges = edges.filter(e => e.source === parentId && 
+        (side === 'left' ? e.sourceHandle === 'source-left' : e.sourceHandle !== 'source-left')
+      );
+      for (const edge of childEdges) {
+        hiddenEdges.add(edge.id);
+        hiddenNodes.add(edge.target);
+        hideDescendants(edge.target, 'left');
+        hideDescendants(edge.target, 'right');
+      }
+    };
+    
+    for (const n of nodes) {
+      if (n.data?.collapsedLeft) hideDescendants(n.id, 'left');
+      if (n.data?.collapsedRight || n.data?.collapsed) hideDescendants(n.id, 'right');
+    }
+    
+    return {
+      visibleNodes: nodes.map(n => ({ 
+        ...n, 
+        hidden: hiddenNodes.has(n.id),
+        data: {
+          ...n.data,
+          hasLeftChildren: parentLeftIds.has(n.id),
+          hasRightChildren: parentRightIds.has(n.id),
+          side: sideMap.get(n.id) || 'root',
+          updateNodeData
+        }
+      })),
+      visibleEdges: edges.map(e => ({ ...e, hidden: hiddenEdges.has(e.id), animated: false }))
+    };
+  }, [nodes, edges, updateNodeData]);
+
   return (
     <>
       <ReactFlow
-        nodes={nodes}
-        edges={edges}
+        nodes={visibleNodes}
+        edges={visibleEdges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
@@ -718,7 +781,7 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
             title={showMiniMap ? "Masquer la Mini-Map" : "Afficher la Mini-Map"}
             style={{ color: showMiniMap ? 'var(--primary)' : 'var(--text-muted)' }}
           >
-            <Map size={18} />
+            <MapIcon size={18} />
           </button>
         </Panel>
       </ReactFlow>

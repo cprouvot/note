@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Handle, Position, useReactFlow } from 'reactflow';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Minus, Trash2 } from 'lucide-react';
 import RichTextEditor from './RichTextEditor';
 
 export default function CustomNode({ id, data, selected }) {
@@ -27,14 +27,18 @@ export default function CustomNode({ id, data, selected }) {
   };
 
   const updateNodeData = (newData) => {
-    setNodes((nds) =>
-      nds.map((node) => {
-        if (node.id === id) {
-          return { ...node, data: { ...node.data, ...newData } };
-        }
-        return node;
-      })
-    );
+    if (data.updateNodeData) {
+      data.updateNodeData(id, newData);
+    } else {
+      setNodes((nds) =>
+        nds.map((node) => {
+          if (node.id === id) {
+            return { ...node, data: { ...node.data, ...newData } };
+          }
+          return node;
+        })
+      );
+    }
   };
 
   const onDelete = (e) => {
@@ -90,7 +94,7 @@ export default function CustomNode({ id, data, selected }) {
       target: newNodeId,
       sourceHandle: isLeft ? 'source-left' : null,
       targetHandle: isLeft ? 'target-right' : null,
-      animated: true,
+      animated: false,
       style: { stroke: '#94a3b8', strokeWidth: 2 }
     };
 
@@ -107,7 +111,13 @@ export default function CustomNode({ id, data, selected }) {
       // Wait, we WANT tab to create a child even when they are focused!
       if (evt.key === 'Tab' && selected) {
         evt.preventDefault();
-        onAddChild(evt, evt.shiftKey ? 'left' : 'right');
+        const nodeSide = data.side || 'root';
+        let direction = nodeSide === 'left' ? 'left' : 'right';
+        
+        if (evt.shiftKey) {
+           direction = direction === 'left' ? 'right' : 'left';
+        }
+        onAddChild(evt, direction);
       }
     };
     
@@ -117,7 +127,7 @@ export default function CustomNode({ id, data, selected }) {
     return () => {
       window.removeEventListener('keydown', handleGlobalKeyDown);
     };
-  }, [selected, id, setNodes, setEdges, getNodes, label, bgColor, textColor]);
+  }, [selected, id, setNodes, setEdges, getNodes, label, bgColor, textColor, data.side]);
 
   return (
     <div 
@@ -264,6 +274,67 @@ export default function CustomNode({ id, data, selected }) {
             <Plus size={14} />
           </button>
         </>
+      )}
+
+      {/* Boutons de Repli des enfants */}
+      {data.hasLeftChildren && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            updateNodeData({ collapsedLeft: !data.collapsedLeft });
+          }}
+          title={data.collapsedLeft ? "Déplier à gauche" : "Replier à gauche"}
+          style={{
+            position: 'absolute',
+            left: '-12px',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            background: 'var(--panel-bg)',
+            color: 'var(--text-main)',
+            border: '1px solid var(--border-color)',
+            borderRadius: '50%',
+            width: '18px',
+            height: '18px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            boxShadow: 'var(--shadow-sm)',
+            zIndex: 15,
+            padding: 0
+          }}>
+          {data.collapsedLeft ? <Plus size={10} strokeWidth={3} /> : <Minus size={10} strokeWidth={3} />}
+        </button>
+      )}
+
+      {data.hasRightChildren && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            updateNodeData({ collapsedRight: !data.collapsedRight });
+          }}
+          title={data.collapsedRight ? "Déplier à droite" : "Replier à droite"}
+          style={{
+            position: 'absolute',
+            right: '-12px',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            background: 'var(--panel-bg)',
+            color: 'var(--text-main)',
+            border: '1px solid var(--border-color)',
+            borderRadius: '50%',
+            width: '18px',
+            height: '18px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            boxShadow: 'var(--shadow-sm)',
+            zIndex: 15,
+            padding: 0
+          }}>
+          {data.collapsedRight ? <Plus size={10} strokeWidth={3} /> : <Minus size={10} strokeWidth={3} />}
+        </button>
       )}
       
       {/* SECONDARY HANDLES (Hidden anchors used exclusively for bi-directional Left children branching) */}
