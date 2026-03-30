@@ -125,7 +125,9 @@
   background-color: var(--bg-color);
 }
 
-.task-item:hover .delete-task-btn, .task-item:hover .drag-handle {
+.task-item:hover .delete-task-btn,
+.task-item:hover .add-task-btn,
+.task-item:hover .drag-handle {
   opacity: 1;
 }
 
@@ -205,10 +207,15 @@
   text-decoration: line-through;
 }
 
-.delete-task-btn {
+.task-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.delete-task-btn, .add-task-btn {
   background: none;
   border: none;
-  color: #ef4444;
   cursor: pointer;
   opacity: 0;
   padding: 2px;
@@ -221,8 +228,18 @@
   flex-shrink: 0;
 }
 
+.delete-task-btn {
+  color: #ef4444;
+}
 .delete-task-btn:hover {
   background-color: rgba(239, 68, 68, 0.1);
+}
+
+.add-task-btn {
+  color: #3b82f6;
+}
+.add-task-btn:hover {
+  background-color: rgba(59, 130, 246, 0.1);
 }
 
 .empty-category-dropzone {

@@ -74,15 +74,23 @@ export default function CustomNode({ id, data, selected }) {
     
     let newY = parentNode.position.y;
     if (sideChildrenNodes.length > 0) {
-      const maxY = Math.max(...sideChildrenNodes.map(n => n.position.y));
-      newY = maxY + 60;
+      const maxY = Math.max(...sideChildrenNodes.map(n => n.position.y + (n.height || 40)));
+      newY = maxY + 20;
     }
     
+    const parentBoxWidth = parentNode.width || 160;
+    const assumedChildWidth = 160;
+    const X_OFFSET = 60;
+    
+    const childX = isLeft 
+        ? parentNode.position.x - X_OFFSET - assumedChildWidth 
+        : parentNode.position.x + parentBoxWidth + X_OFFSET;
+
     const newNode = {
       id: newNodeId,
       type: 'custom',
       position: { 
-        x: parentNode.position.x + (isLeft ? -220 : 220), 
+        x: childX, 
         y: newY 
       },
       data: { label: 'Nouvelle idée' },

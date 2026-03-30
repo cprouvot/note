@@ -147,7 +147,7 @@ function BasicTaskItem({ task, toggleTask, removeTask, updateTaskText, handleTas
   );
 }
 
-function SortableTaskItem({ task, toggleTask, removeTask, updateTaskText, handleTaskKeyDown }) {
+function SortableTaskItem({ task, toggleTask, removeTask, updateTaskText, handleTaskKeyDown, addSubTask }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id, data: { category: task.category } });
 
   const style = {
@@ -176,9 +176,14 @@ function SortableTaskItem({ task, toggleTask, removeTask, updateTaskText, handle
           handleTaskKeyDown={handleTaskKeyDown} 
         />
       </div>
-      <button className="delete-task-btn" onClick={() => removeTask(task.id)} title="Supprimer la tâche">
-        <Trash2 size={14} />
-      </button>
+      <div className="task-actions">
+        <button className="add-task-btn" onClick={() => addSubTask(task.id)} title="Créer une sous-tâche">
+          <Plus size={14} />
+        </button>
+        <button className="delete-task-btn" onClick={() => removeTask(task.id)} title="Supprimer la tâche">
+          <Trash2 size={14} />
+        </button>
+      </div>
     </li>
   );
 }
@@ -317,6 +322,39 @@ export default function TodoSidebar() {
            sel.addRange(range);
         }, 0);
       }
+    }
+  };
+
+  const addSubTask = async (id) => {
+    const currentTask = tasks.find(t => t.id === id);
+    if (!currentTask) return;
+    
+    const catTasks = tasks.filter(t => t.category === currentTask.category);
+    const catIndex = catTasks.findIndex(t => t.id === id);
+    const nextTask = catTasks[catIndex + 1];
+    const newOrderIndex = nextTask 
+      ? (currentTask.orderIndex + nextTask.orderIndex) / 2 
+      : currentTask.orderIndex + 1;
+
+    const savedTask = await api.createTask({
+      text: '',
+      category: currentTask.category,
+      done: false,
+      indentLevel: Math.min(5, (currentTask.indentLevel || 0) + 1),
+      orderIndex: newOrderIndex
+    }).catch(console.error);
+
+    if (savedTask) {
+      setTasks(currentTasks => {
+        const currentIndex = currentTasks.findIndex(t => t.id === id);
+        const newTasks = [...currentTasks];
+        newTasks.splice(currentIndex + 1, 0, savedTask);
+        return newTasks;
+      });
+      setTimeout(() => {
+        const input = document.getElementById(`task-input-${savedTask.id}`);
+        if (input) input.focus();
+      }, 100);
     }
   };
 
@@ -515,6 +553,7 @@ export default function TodoSidebar() {
                         removeTask={removeTask}
                         updateTaskText={updateTaskText}
                         handleTaskKeyDown={handleTaskKeyDown}
+                        addSubTask={addSubTask}
                       />
                     ))}
                     {catTasks.length === 0 && (

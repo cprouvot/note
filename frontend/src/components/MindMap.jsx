@@ -587,46 +587,65 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
     const rootChildren = getChildrenSubtree(rootId, null);
     if (rootChildren.length === 0) return setMenu(null);
 
+    const X_OFFSET = 60; // Espace horizontal entre les noeuds
+    const Y_OFFSET = 20; // Espace vertical entre les noeuds
+
+    const getNodeBox = (id) => {
+      const n = nodes.find(n => n.id === id);
+      return { width: n?.width || 160, height: n?.height || 40 };
+    };
+
     const calculateSizes = (childrenArray) => {
-      let totalSize = 0;
+      let totalHeight = 0;
       for (const child of childrenArray) {
+        const box = getNodeBox(child.id);
         if (child.children.length === 0) {
-          child.size = 1;
+          child.treeHeight = box.height;
         } else {
-          child.size = calculateSizes(child.children);
+          child.treeHeight = calculateSizes(child.children);
+          child.treeHeight = Math.max(child.treeHeight, box.height); // Le parent doit au moins rentrer
         }
-        totalSize += child.size;
+        totalHeight += child.treeHeight;
       }
-      return totalSize;
+      if (childrenArray.length > 1) {
+         totalHeight += (childrenArray.length - 1) * Y_OFFSET;
+      }
+      return totalHeight;
     };
 
     const leftChildren = rootChildren.filter(c => c.direction === 'left');
     const rightChildren = rootChildren.filter(c => c.direction === 'right');
 
-    const leftSize = calculateSizes(leftChildren);
-    const rightSize = calculateSizes(rightChildren);
+    calculateSizes(leftChildren);
+    calculateSizes(rightChildren);
 
     const nodePositions = {};
-    const X_OFFSET = 220;
-    const Y_OFFSET = 60;
+    const rootBox = getNodeBox(rootNode.id);
 
-    const positionChildren = (childrenArray, parentX, parentY, isLeft) => {
-      const totalSize = childrenArray.reduce((sum, c) => sum + c.size, 0);
-      let startY = parentY - ((totalSize - 1) * Y_OFFSET) / 2;
+    const positionChildren = (childrenArray, parentX, parentCenterY, parentBox, isLeft) => {
+      const totalHeight = childrenArray.reduce((sum, c) => sum + c.treeHeight, 0) + Math.max(0, childrenArray.length - 1) * Y_OFFSET;
+      let startY = parentCenterY - totalHeight / 2;
 
       for (const child of childrenArray) {
-        const childY = startY + ((child.size - 1) * Y_OFFSET) / 2;
-        const childX = parentX + (isLeft ? -X_OFFSET : X_OFFSET);
+        const box = getNodeBox(child.id);
+        const childCenterY = startY + child.treeHeight / 2;
+        const childY = childCenterY - box.height / 2;
+        
+        const childX = isLeft 
+            ? parentX - X_OFFSET - box.width 
+            : parentX + parentBox.width + X_OFFSET;
+
         nodePositions[child.id] = { x: childX, y: childY };
         
-        positionChildren(child.children, childX, childY, isLeft);
+        positionChildren(child.children, childX, childCenterY, box, isLeft);
         
-        startY += child.size * Y_OFFSET;
+        startY += child.treeHeight + Y_OFFSET;
       }
     };
 
-    positionChildren(leftChildren, rootNode.position.x, rootNode.position.y, true);
-    positionChildren(rightChildren, rootNode.position.x, rootNode.position.y, false);
+    const rootCenterY = rootNode.position.y + rootBox.height / 2;
+    positionChildren(leftChildren, rootNode.position.x, rootCenterY, rootBox, true);
+    positionChildren(rightChildren, rootNode.position.x, rootCenterY, rootBox, false);
 
     setNodes((nds) => 
       nds.map(n => {
