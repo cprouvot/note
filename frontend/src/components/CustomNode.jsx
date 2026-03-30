@@ -75,14 +75,14 @@ export default function CustomNode({ id, data, selected }) {
     let newY = parentNode.position.y;
     if (sideChildrenNodes.length > 0) {
       const maxY = Math.max(...sideChildrenNodes.map(n => n.position.y));
-      newY = maxY + 80;
+      newY = maxY + 60;
     }
     
     const newNode = {
       id: newNodeId,
       type: 'custom',
       position: { 
-        x: parentNode.position.x + (isLeft ? -280 : 280), 
+        x: parentNode.position.x + (isLeft ? -220 : 220), 
         y: newY 
       },
       data: { label: 'Nouvelle idée' },
@@ -133,15 +133,14 @@ export default function CustomNode({ id, data, selected }) {
     <div 
       onDoubleClick={onDoubleClick}
       style={{
-      padding: '8px 16px',
+      padding: '4px 8px',
       borderRadius: '8px',
       background: bgColor,
       border: `2px solid ${selected ? 'var(--primary)' : 'var(--node-border)'}`,
       boxShadow: selected ? '0 0 0 3px rgba(59, 130, 246, 0.2)' : 'var(--shadow-md)',
-      fontSize: '14px',
+      fontSize: '13px',
       fontFamily: 'Inter, sans-serif',
       color: textColor,
-      minWidth: '120px',
       textAlign: 'center',
       fontWeight: '500',
       position: 'relative',

@@ -464,10 +464,10 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
       
       let newY = newParent.position.y;
       if (sideNodes.length > 0) {
-        newY = Math.max(...sideNodes.map(n => n.position.y)) + 100;
+        newY = Math.max(...sideNodes.map(n => n.position.y)) + 60;
       }
       
-      finalNodePos = { x: newParent.position.x + (isLeft ? -320 : 320), y: newY };
+      finalNodePos = { x: newParent.position.x + (isLeft ? -220 : 220), y: newY };
       dx = finalNodePos.x - dragStartPos.x;
       dy = finalNodePos.y - dragStartPos.y;
       
@@ -607,8 +607,8 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
     const rightSize = calculateSizes(rightChildren);
 
     const nodePositions = {};
-    const X_OFFSET = 320;
-    const Y_OFFSET = 100;
+    const X_OFFSET = 220;
+    const Y_OFFSET = 60;
 
     const positionChildren = (childrenArray, parentX, parentY, isLeft) => {
       const totalSize = childrenArray.reduce((sum, c) => sum + c.size, 0);
