@@ -68,6 +68,7 @@
   gap: 4px;
 }
 
+.add-top-category-btn,
 .export-category-btn,
 .clear-category-btn,
 .delete-category-btn {
@@ -84,10 +85,16 @@
   justify-content: center;
 }
 
+.category-header:hover .add-top-category-btn,
 .category-header:hover .export-category-btn,
 .category-header:hover .clear-category-btn,
 .category-header:hover .delete-category-btn {
   opacity: 1;
+}
+
+.add-top-category-btn:hover {
+  color: #3b82f6;
+  background-color: rgba(59, 130, 246, 0.1);
 }
 
 .export-category-btn:hover {

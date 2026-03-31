@@ -380,6 +380,37 @@ export default function TodoSidebar() {
     }
   };
 
+  const addEmptyTaskTop = async (category) => {
+    const catTasks = tasks.filter(t => t.category === category);
+    const firstTask = catTasks[0];
+    const newOrderIndex = firstTask ? firstTask.orderIndex - 1 : 0;
+
+    const savedTask = await api.createTask({
+      text: '',
+      category: category,
+      done: false,
+      indentLevel: 0,
+      orderIndex: newOrderIndex
+    }).catch(console.error);
+
+    if (savedTask) {
+      setTasks(currentTasks => {
+        const insertIndex = currentTasks.findIndex(t => t.category === category);
+        const newTasks = [...currentTasks];
+        if (insertIndex !== -1) {
+          newTasks.splice(insertIndex, 0, savedTask);
+        } else {
+          newTasks.push(savedTask);
+        }
+        return newTasks;
+      });
+      setTimeout(() => {
+        const input = document.getElementById(`task-input-${savedTask.id}`);
+        if (input) input.focus();
+      }, 100);
+    }
+  };
+
   const addCategory = (e) => {
     e.preventDefault();
     const cleanCat = newCategoryText.trim();
@@ -519,6 +550,13 @@ export default function TodoSidebar() {
                     setTasks={setTasks}
                   />
                   <div className="category-actions">
+                    <button 
+                      className="add-top-category-btn" 
+                      onClick={() => addEmptyTaskTop(category)} 
+                      title="Créer une tâche en haut de la catégorie"
+                    >
+                      <Plus size={14} />
+                    </button>
                     <button 
                       className="export-category-btn" 
                       onClick={() => exportCategory(category, catTasks)} 
