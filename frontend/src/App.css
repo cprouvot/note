@@ -66,3 +66,40 @@
     display: none;
   }
 }
+
+/* Top-right header buttons */
+.app-header-btn {
+  background: var(--panel-bg);
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.15s ease;
+  outline: none;
+}
+
+.app-header-btn:hover {
+  transform: scale(1.05);
+}
+
+.app-header-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.app-header-btn.primary-active {
+  background: var(--primary);
+  color: white;
+  border: none;
+  box-shadow: var(--shadow-md);
+}
+
+.app-header-btn.primary-active:focus-visible {
+  outline-color: var(--primary-hover);
+}
