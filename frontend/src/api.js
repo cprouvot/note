@@ -92,6 +92,10 @@ export const api = {
     const res = await _fetch(`${API_URL}/tasks/category/${encodeURIComponent(categoryName)}`, { method: 'DELETE', headers: getHeaders() });
     return res.json();
   },
+  clearCompletedTasks: async () => {
+    const res = await _fetch(`${API_URL}/tasks/completed/clear`, { method: 'DELETE', headers: getHeaders() });
+    return res.json();
+  },
 
   // --- ADMIN ---
   getUsers: async () => {

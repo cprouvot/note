@@ -524,7 +524,7 @@ export default function TodoSidebar() {
   const clearCompletedTasks = async () => {
     if (window.confirm("Vous allez vider TOUTES vos tâches terminées. Confirmer ?")) {
       setTasks(tasks.filter(t => !t.done));
-      await Promise.all(completedTasks.map(t => api.deleteTask(t.id))).catch(console.error);
+      await api.clearCompletedTasks().catch(console.error);
     }
   };
 

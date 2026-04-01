@@ -99,4 +99,15 @@ router.delete('/category/:categoryName', async (req, res) => {
   }
 });
 
+router.delete('/completed/clear', async (req, res) => {
+  try {
+    await prisma.task.deleteMany({
+      where: { done: true, userId: req.user.id }
+    });
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Erreur Serveur' });
+  }
+});
+
 module.exports = router;
