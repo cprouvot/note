@@ -82,24 +82,12 @@ function App() {
         <div style={{ position: 'absolute', top: '16px', right: '16px', zIndex: 100, display: 'flex', gap: '8px', alignItems: 'center' }}>
           <div style={{ position: 'relative' }}>
             <button 
+              className="app-header-btn"
               onClick={() => setMenuOpen(!menuOpen)}
               title="Menu Utilisateur"
-              style={{
-                background: 'var(--panel-bg)',
-                color: 'var(--text-main)',
-                border: '1px solid var(--border-color)',
-                borderRadius: '6px',
-                width: '36px',
-                height: '36px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                boxShadow: 'var(--shadow-sm)',
-                transition: 'all 0.15s ease',
-              }}
-              onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.05)'}
-              onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+              aria-label="Menu Utilisateur"
+              aria-expanded={menuOpen}
+              aria-haspopup="true"
             >
               <User size={20} />
             </button>
@@ -162,57 +150,21 @@ function App() {
           </div>
 
           <button 
-            className="toggle-theme-btn" 
+            className="app-header-btn toggle-theme-btn"
             title={theme === 'light' ? 'Activer le mode sombre' : 'Activer le mode clair'}
+            aria-label={theme === 'light' ? 'Activer le mode sombre' : 'Activer le mode clair'}
             onClick={() => setTheme(theme === 'light' ? 'dark' : 'light')}
-            style={{
-              background: 'var(--panel-bg)',
-              color: 'var(--text-main)',
-              border: '1px solid var(--border-color)',
-              borderRadius: '6px',
-              width: '36px',
-              height: '36px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              boxShadow: 'var(--shadow-sm)',
-              transition: 'all 0.15s ease',
-            }}
-            onMouseEnter={(e) => {
-               e.currentTarget.style.transform = 'scale(1.05)';
-            }}
-            onMouseLeave={(e) => {
-               e.currentTarget.style.transform = 'scale(1)';
-            }}
           >
             {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
           </button>
 
           <button 
-            className="toggle-sidebar-btn" 
+            className={`app-header-btn toggle-sidebar-btn ${!isSidebarOpen ? 'primary-active' : ''}`}
             title={isSidebarOpen ? "Fermer la liste des tâches" : "Ouvrir la liste des tâches"}
+            aria-label={isSidebarOpen ? "Fermer la liste des tâches" : "Ouvrir la liste des tâches"}
+            aria-expanded={isSidebarOpen}
+            aria-controls="todo-sidebar"
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            style={{
-              background: isSidebarOpen ? 'var(--panel-bg)' : 'var(--primary)',
-              color: isSidebarOpen ? 'var(--text-main)' : 'white',
-              border: isSidebarOpen ? '1px solid var(--border-color)' : 'none',
-              borderRadius: '6px',
-              width: '36px',
-              height: '36px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              cursor: 'pointer',
-              boxShadow: 'var(--shadow-md)',
-              transition: 'all 0.15s ease',
-            }}
-            onMouseEnter={(e) => {
-               e.currentTarget.style.transform = 'scale(1.05)';
-            }}
-            onMouseLeave={(e) => {
-               e.currentTarget.style.transform = 'scale(1)';
-            }}
           >
             {isSidebarOpen ? <X size={20} /> : <ListTodo size={20} />}
           </button>
@@ -222,6 +174,7 @@ function App() {
 
       {isSidebarOpen && (
         <aside 
+          id="todo-sidebar"
           className="todo-sidebar-area" 
           style={{ 
             width: sidebarWidth, 
