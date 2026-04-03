@@ -8,6 +8,7 @@ import MindMap from './components/MindMap';
 import TodoSidebar from './components/TodoSidebar';
 import Login from './components/Login';
 import AdminPanel from './components/AdminPanel';
+import { initSocket } from './api';
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem('mindboard_token'));
@@ -26,6 +27,14 @@ function App() {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('mindboard_theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    if (token) {
+      initSocket(token);
+    } else {
+      initSocket(null);
+    }
+  }, [token]);
 
   const startResizing = useCallback((e) => {
     e.preventDefault();
