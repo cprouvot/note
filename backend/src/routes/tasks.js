@@ -38,6 +38,8 @@ router.put('/categories', async (req, res) => {
       where: { id: req.user.id },
       data: { categories }
     });
+    const io = req.app.get('io');
+    if (io) io.to(req.user.id).emit('refetchData');
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Erreur Serveur' });
@@ -58,6 +60,8 @@ router.post('/', async (req, res) => {
         userId: req.user.id
       }
     });
+    const io = req.app.get('io');
+    if (io) io.to(req.user.id).emit('refetchData');
     res.json(task);
   } catch (error) {
     res.status(500).json({ error: 'Erreur Serveur' });
@@ -71,6 +75,8 @@ router.put('/:id', async (req, res) => {
       where: { id: req.params.id, userId: req.user.id },
       data: { text, category, done, indentLevel, orderIndex }
     });
+    const io = req.app.get('io');
+    if (io) io.to(req.user.id).emit('refetchData');
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Erreur Serveur' });
@@ -82,6 +88,8 @@ router.delete('/:id', async (req, res) => {
     await prisma.task.deleteMany({
       where: { id: req.params.id, userId: req.user.id }
     });
+    const io = req.app.get('io');
+    if (io) io.to(req.user.id).emit('refetchData');
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Erreur Serveur' });
@@ -93,6 +101,8 @@ router.delete('/category/:categoryName', async (req, res) => {
     await prisma.task.deleteMany({
       where: { category: req.params.categoryName, userId: req.user.id }
     });
+    const io = req.app.get('io');
+    if (io) io.to(req.user.id).emit('refetchData');
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Erreur Serveur' });

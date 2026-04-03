@@ -3,7 +3,7 @@ import { Plus, Trash2, GripVertical, Copy, Check, Eraser } from 'lucide-react';
 import { DndContext, closestCorners, KeyboardSensor, PointerSensor, useSensor, useSensors, useDroppable } from '@dnd-kit/core';
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { api } from '../api';
+import { api, syncEmitter } from '../api';
 import './TodoSidebar.css';
 
 const defaultCategories = ['Akabia', 'Perso', 'En attente', 'Done'];
@@ -194,23 +194,32 @@ export default function TodoSidebar() {
   const [newCategoryText, setNewCategoryText] = useState('');
   const [copiedCategory, setCopiedCategory] = useState(null);
 
-  useEffect(() => {
-    const fetchTasksAndCategories = async () => {
-      try {
-        const [tasksData, catsData] = await Promise.all([
-          api.getTasks(),
-          api.getCategories()
-        ]);
-        setTasks(tasksData);
-        if (catsData && catsData.length > 0) {
-          setCategories(catsData);
-        }
-      } catch (err) {
-        console.error("Failed to load tasks and categories", err);
+  const fetchTasksAndCategories = React.useCallback(async () => {
+    try {
+      const [tasksData, catsData] = await Promise.all([
+        api.getTasks(),
+        api.getCategories()
+      ]);
+      setTasks(tasksData);
+      if (catsData && catsData.length > 0) {
+        setCategories(catsData);
       }
-    };
-    fetchTasksAndCategories();
+    } catch (err) {
+      console.error("Failed to load tasks and categories", err);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchTasksAndCategories();
+  }, [fetchTasksAndCategories]);
+
+  useEffect(() => {
+    const handleRemoteUpdate = () => {
+      fetchTasksAndCategories();
+    };
+    syncEmitter.addEventListener('remoteUpdate', handleRemoteUpdate);
+    return () => syncEmitter.removeEventListener('remoteUpdate', handleRemoteUpdate);
+  }, [fetchTasksAndCategories]);
 
   const saveCategories = async (newCats) => {
     setCategories(newCats);
@@ -458,7 +467,6 @@ export default function TodoSidebar() {
 
     if (activeId === overId) return;
 
-    let updatedTasks = [];
     let modifiedTask = null;
 
     setTasks((prevTasks) => {
@@ -470,7 +478,6 @@ export default function TodoSidebar() {
           const newTasks = [...prevTasks];
           newTasks[activeIndex] = { ...activeTask, category: overId };
           modifiedTask = newTasks[activeIndex];
-          updatedTasks = newTasks;
           return newTasks;
         }
         return prevTasks;
@@ -480,7 +487,6 @@ export default function TodoSidebar() {
       if (overIndex !== -1) {
         const overTask = prevTasks[overIndex];
         let newTasks = [...prevTasks];
-        const activeCat = activeTask.category;
         const overCat = overTask.category;
 
         newTasks.splice(activeIndex, 1);

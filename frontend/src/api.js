@@ -1,6 +1,26 @@
-const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3000') + '/api';
+import { io } from 'socket.io-client';
+
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_URL = API_BASE_URL + '/api';
 
 export const syncEmitter = new EventTarget();
+
+let socket = null;
+
+export const initSocket = (token) => {
+  if (socket) {
+    socket.disconnect();
+  }
+  if (!token) return;
+
+  socket = io(API_BASE_URL, {
+    auth: { token }
+  });
+
+  socket.on('refetchData', () => {
+    syncEmitter.dispatchEvent(new CustomEvent('remoteUpdate'));
+  });
+};
 
 const _fetch = async (url, options) => {
   const isMutation = options && options.method && options.method !== 'GET';

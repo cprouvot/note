@@ -20,6 +20,8 @@ router.post('/', async (req, res) => {
         userId: req.user.id
       }
     });
+    const io = req.app.get('io');
+    if (io) io.to(req.user.id).emit('refetchData');
     res.json(board);
   } catch (error) {
     res.status(500).json({ error: 'Erreur Serveur' });
@@ -62,6 +64,8 @@ router.put('/reorder/batch', async (req, res) => {
       })
     );
     await prisma.$transaction(updates);
+    const io = req.app.get('io');
+    if (io) io.to(req.user.id).emit('refetchData');
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Erreur Serveur' });
@@ -76,6 +80,8 @@ router.put('/:id', async (req, res) => {
       data: { name, nodes, edges, viewport, orderIndex }
     });
     if (board.count === 0) return res.status(404).json({ error: 'Carte introuvable' });
+    const io = req.app.get('io');
+    if (io) io.to(req.user.id).emit('refetchData');
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Erreur Serveur' });
@@ -87,6 +93,8 @@ router.delete('/:id', async (req, res) => {
     const board = await prisma.board.deleteMany({
       where: { id: req.params.id, userId: req.user.id }
     });
+    const io = req.app.get('io');
+    if (io) io.to(req.user.id).emit('refetchData');
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Erreur Serveur' });

@@ -845,31 +845,47 @@ export default function MindMap() {
   const [activeBoardId, setActiveBoardId] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  const activeBoardIdRef = useRef(activeBoardId);
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        const fetchedBoards = await api.getBoards();
-        if (fetchedBoards.length === 0) {
-          const newBoard = await api.createBoard({ 
-            name: 'Carte Principale', 
-            nodes: defaultNodes, 
-            edges: defaultEdges, 
-            viewport: {x:0, y:0, zoom:1} 
-          });
-          setBoards([newBoard]);
-          setActiveBoardId(newBoard.id);
-        } else {
-          setBoards(fetchedBoards);
+    activeBoardIdRef.current = activeBoardId;
+  }, [activeBoardId]);
+
+  const loadData = useCallback(async () => {
+    try {
+      const fetchedBoards = await api.getBoards();
+      if (fetchedBoards.length === 0) {
+        const newBoard = await api.createBoard({
+          name: 'Carte Principale',
+          nodes: defaultNodes,
+          edges: defaultEdges,
+          viewport: {x:0, y:0, zoom:1}
+        });
+        setBoards([newBoard]);
+        setActiveBoardId(newBoard.id);
+      } else {
+        setBoards(fetchedBoards);
+        if (!activeBoardIdRef.current || !fetchedBoards.find(b => b.id === activeBoardIdRef.current)) {
           setActiveBoardId(fetchedBoards[0].id);
         }
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
       }
-    };
-    loadData();
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  useEffect(() => {
+    const handleRemoteUpdate = () => {
+      loadData();
+    };
+    syncEmitter.addEventListener('remoteUpdate', handleRemoteUpdate);
+    return () => syncEmitter.removeEventListener('remoteUpdate', handleRemoteUpdate);
+  }, [loadData]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
