@@ -35,7 +35,7 @@ services:
       dockerfile: Dockerfile
       args:
         # Build argument injecté dynamiquement dans la configuration Vite !
-        - VITE_API_URL=https://mindboard.akabia.fr
+        - VITE_API_URL=http://localhost:3000
     container_name: mindboard-frontend
     restart: always
     ports:
