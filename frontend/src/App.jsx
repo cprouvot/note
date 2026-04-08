@@ -8,6 +8,7 @@ import MindMap from './components/MindMap';
 import TodoSidebar from './components/TodoSidebar';
 import Login from './components/Login';
 import AdminPanel from './components/AdminPanel';
+import { socket } from './socket';
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem('mindboard_token'));
@@ -26,6 +27,19 @@ function App() {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('mindboard_theme', theme);
   }, [theme]);
+
+  // Gestion du Socket Globale
+  useEffect(() => {
+    if (user) {
+      socket.connect();
+      socket.emit('join_user_room', user.id);
+    } else {
+      socket.disconnect();
+    }
+    return () => {
+      socket.disconnect();
+    };
+  }, [user]);
 
   const startResizing = useCallback((e) => {
     e.preventDefault();

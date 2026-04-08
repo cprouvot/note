@@ -1,3 +1,5 @@
+import { socket } from './socket';
+
 const API_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3000') + '/api';
 
 export const syncEmitter = new EventTarget();
@@ -21,7 +23,8 @@ const getHeaders = () => {
   const token = localStorage.getItem('mindboard_token');
   return {
     'Content-Type': 'application/json',
-    ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+    ...(socket.id ? { 'x-socket-id': socket.id } : {})
   };
 };
 
@@ -44,6 +47,10 @@ export const api = {
       localStorage.removeItem('mindboard_token'); // Auto logout on expiration
       throw new Error('Unauthorized');
     }
+    return res.json();
+  },
+  getBoard: async (id) => {
+    const res = await _fetch(`${API_URL}/boards/${id}`, { headers: getHeaders() });
     return res.json();
   },
   reorderBoards: async (boardIds) => {

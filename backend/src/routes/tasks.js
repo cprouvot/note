@@ -5,6 +5,15 @@ const { authenticateToken } = require('../middleware/auth');
 const prisma = new PrismaClient();
 const router = express.Router();
 
+const notifyTasksUpdated = (req) => {
+  const io = req.app.get('io');
+  const socketId = req.headers['x-socket-id'];
+  if (io) {
+    if (socketId) io.to(`user_${req.user.id}`).except(socketId).emit('server:tasks_updated');
+    else io.to(`user_${req.user.id}`).emit('server:tasks_updated');
+  }
+};
+
 router.use(authenticateToken);
 
 router.get('/', async (req, res) => {
@@ -38,6 +47,7 @@ router.put('/categories', async (req, res) => {
       where: { id: req.user.id },
       data: { categories }
     });
+    notifyTasksUpdated(req);
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Erreur Serveur' });
@@ -58,6 +68,7 @@ router.post('/', async (req, res) => {
         userId: req.user.id
       }
     });
+    notifyTasksUpdated(req);
     res.json(task);
   } catch (error) {
     res.status(500).json({ error: 'Erreur Serveur' });
@@ -71,6 +82,7 @@ router.put('/:id', async (req, res) => {
       where: { id: req.params.id, userId: req.user.id },
       data: { text, category, done, indentLevel, orderIndex }
     });
+    notifyTasksUpdated(req);
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Erreur Serveur' });
@@ -82,6 +94,7 @@ router.delete('/:id', async (req, res) => {
     await prisma.task.deleteMany({
       where: { id: req.params.id, userId: req.user.id }
     });
+    notifyTasksUpdated(req);
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Erreur Serveur' });
@@ -93,6 +106,7 @@ router.delete('/category/:categoryName', async (req, res) => {
     await prisma.task.deleteMany({
       where: { category: req.params.categoryName, userId: req.user.id }
     });
+    notifyTasksUpdated(req);
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Erreur Serveur' });

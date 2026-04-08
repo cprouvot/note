@@ -22,6 +22,7 @@ import RectangleNode from './RectangleNode';
 import TextNode from './TextNode';
 import ImageNode from './ImageNode';
 import { api, syncEmitter } from '../api';
+import { socket } from '../socket';
 import './MindMap.css';
 
 const nodeTypes = {
@@ -91,6 +92,36 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
   const [future, setFuture] = useState([]);
   const clipboardRef = useRef([]);
   const isUndoRedoAction = useRef(false);
+
+  // Synchronisation distante Socket.io
+  useEffect(() => {
+    if (activeBoardId) {
+      socket.emit('join_board', activeBoardId);
+    }
+
+    const handleRemoteUpdate = async () => {
+      try {
+        const remoteBoard = await api.getBoard(activeBoardId);
+        if (remoteBoard && remoteBoard.nodes) {
+          setNodes(remoteBoard.nodes);
+          setEdges(remoteBoard.edges);
+          // Mettre également à jour le nom si on a un hook global, 
+          // mais on fait simple pour les nodes pour éviter les loops de setBoards.
+        }
+      } catch (err) {
+        console.error("Sync error:", err);
+      }
+    };
+
+    socket.on('server:board_updated', handleRemoteUpdate);
+    
+    return () => {
+      socket.off('server:board_updated', handleRemoteUpdate);
+      if (activeBoardId) {
+        socket.emit('leave_board', activeBoardId);
+      }
+    };
+  }, [activeBoardId]);
 
   const takeSnapshot = useCallback(() => {
     setPast(p => {

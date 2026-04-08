@@ -26,7 +26,16 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', environment: process.env.NODE_ENV });
 });
 
+const http = require('http');
+const { initSocket } = require('./socket');
+
+const server = http.createServer(app);
+const io = initSocket(server);
+
+// Rendre "io" accessible dans toutes les routes via req.app.get('io')
+app.set('io', io);
+
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Backend Server API running on port ${PORT}`);
+server.listen(PORT, () => {
+  console.log(`Backend Server API + WebSockets running on port ${PORT}`);
 });

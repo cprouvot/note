@@ -76,6 +76,18 @@ router.put('/:id', async (req, res) => {
       data: { name, nodes, edges, viewport, orderIndex }
     });
     if (board.count === 0) return res.status(404).json({ error: 'Carte introuvable' });
+    
+    // Broadcast de la mise à jour via Socket.io
+    const io = req.app.get('io');
+    const socketId = req.headers['x-socket-id'];
+    if (io) {
+      if (socketId) {
+        io.to(`board_${req.params.id}`).except(socketId).emit('server:board_updated');
+      } else {
+        io.to(`board_${req.params.id}`).emit('server:board_updated');
+      }
+    }
+    
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: 'Erreur Serveur' });

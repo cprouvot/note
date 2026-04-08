@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Trash2, GripVertical, Copy, Check, Eraser } from 'lucide-react';
 import { DndContext, closestCorners, KeyboardSensor, PointerSensor, useSensor, useSensors, useDroppable } from '@dnd-kit/core';
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { api } from '../api';
+import { socket } from '../socket';
 import './TodoSidebar.css';
 
 const defaultCategories = ['Akabia', 'Perso', 'En attente', 'Done'];
@@ -194,23 +195,27 @@ export default function TodoSidebar() {
   const [newCategoryText, setNewCategoryText] = useState('');
   const [copiedCategory, setCopiedCategory] = useState(null);
 
-  useEffect(() => {
-    const fetchTasksAndCategories = async () => {
-      try {
-        const [tasksData, catsData] = await Promise.all([
-          api.getTasks(),
-          api.getCategories()
-        ]);
-        setTasks(tasksData);
-        if (catsData && catsData.length > 0) {
-          setCategories(catsData);
-        }
-      } catch (err) {
-        console.error("Failed to load tasks and categories", err);
+  const fetchTasksAndCategories = useCallback(async () => {
+    try {
+      const [tasksData, catsData] = await Promise.all([
+        api.getTasks(),
+        api.getCategories()
+      ]);
+      setTasks(tasksData);
+      if (catsData && catsData.length > 0) {
+        setCategories(catsData);
       }
-    };
-    fetchTasksAndCategories();
+    } catch (err) {
+      console.error("Failed to load tasks and categories", err);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchTasksAndCategories();
+
+    socket.on('server:tasks_updated', fetchTasksAndCategories);
+    return () => socket.off('server:tasks_updated', fetchTasksAndCategories);
+  }, [fetchTasksAndCategories]);
 
   const saveCategories = async (newCats) => {
     setCategories(newCats);
