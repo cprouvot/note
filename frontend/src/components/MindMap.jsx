@@ -82,6 +82,7 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
   const [nodes, setNodes] = useState(activeBoard.nodes || defaultNodes);
   const [edges, setEdges] = useState(activeBoard.edges || defaultEdges);
   const [menu, setMenu] = useState(null);
+  const [autoArrangeRootId, setAutoArrangeRootId] = useState(null);
   const [syncState, setSyncState] = useState('saved');
   const [showMiniMap, setShowMiniMap] = useState(() => {
     const saved = localStorage.getItem('mindboard_minimap');
@@ -515,6 +516,9 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
         };
         return [...filtered, newEdge];
       });
+      
+      // On déclenche le rangement pour le prochain cycle de rendu
+      setTimeout(() => setAutoArrangeRootId('trigger'), 50);
     }
 
     setNodes(nds => nds.map(n => {
@@ -594,10 +598,21 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
     setMenu(null);
   };
 
-  const arrangeChildren = () => {
-    const rootId = menu.id;
+  const arrangeChildren = useCallback((forcedRootId = null) => {
+    const rootId = forcedRootId && typeof forcedRootId === 'string' && forcedRootId !== 'trigger' 
+       ? forcedRootId 
+       : (menu ? menu.id : (() => {
+           // Si pas de menu, on cherche le noeud racine global
+           const targetIds = edges.map(e => e.target);
+           const root = nodes.find(n => n.type === 'custom' && !targetIds.includes(n.id));
+           return root ? root.id : nodes[0]?.id;
+       })());
+
     const rootNode = nodes.find(n => n.id === rootId);
-    if (!rootNode) return setMenu(null);
+    if (!rootNode) {
+        if (menu) setMenu(null);
+        return;
+    }
     
     takeSnapshot();
 
@@ -696,8 +711,15 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
         return n;
       })
     );
-    setMenu(null);
-  };
+    if (menu) setMenu(null);
+  }, [nodes, edges, menu, takeSnapshot, setNodes]);
+
+  useEffect(() => {
+    if (autoArrangeRootId === 'trigger' && nodes.length > 0 && edges.length > 0) {
+      arrangeChildren();
+      setAutoArrangeRootId(null);
+    }
+  }, [autoArrangeRootId, nodes, edges, arrangeChildren]);
 
   const updateNodeData = useCallback((id, newData) => {
     setNodes(nds => nds.map(n => n.id === id ? { ...n, data: { ...n.data, ...newData } } : n));

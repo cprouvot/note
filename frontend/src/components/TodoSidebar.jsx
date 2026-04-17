@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Trash2, GripVertical, Copy, Check, Eraser } from 'lucide-react';
 import { DndContext, closestCorners, KeyboardSensor, PointerSensor, useSensor, useSensors, useDroppable } from '@dnd-kit/core';
-import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable } from '@dnd-kit/sortable';
+import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { api } from '../api';
 import { socket } from '../socket';
@@ -484,15 +484,17 @@ export default function TodoSidebar() {
       const overIndex = prevTasks.findIndex(t => t.id === overId);
       if (overIndex !== -1) {
         const overTask = prevTasks[overIndex];
-        let newTasks = [...prevTasks];
         const activeCat = activeTask.category;
         const overCat = overTask.category;
 
-        newTasks.splice(activeIndex, 1);
-        const newOverIndex = newTasks.findIndex(t => t.id === overId);
-        
+        let newTasks = [...prevTasks];
         const dropItem = { ...activeTask, category: overCat };
-        newTasks.splice(newOverIndex, 0, dropItem);
+        
+        // Mettre à jour l'objet avec sa nouvelle catégorie s'il traverse
+        newTasks[activeIndex] = dropItem; 
+        
+        // arrayMove décale correctement les indices sans le bug du "je ne peux pas descendre"
+        newTasks = arrayMove(newTasks, activeIndex, overIndex);
 
         const catOnlyTasks = newTasks.filter(t => t.category === overCat);
         const catItemIndex = catOnlyTasks.findIndex(t => t.id === dropItem.id);
