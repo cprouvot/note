@@ -5,9 +5,7 @@ WORKDIR /usr/src/app
 
 RUN apk add --no-cache openssl
 COPY package*.json ./
-
-RUN npm install
-
+RUN rm -f package-lock.json && npm install
 COPY . .
 RUN npx prisma generate || true
 
