@@ -33,8 +33,9 @@ export default function Login({ setToken, setUser }) {
         <form onSubmit={handleSubmit} className="login-form">
           {error && <div className="error-message">{error}</div>}
           <div className="input-group">
-            <label>Adresse e-mail</label>
+            <label htmlFor="email">Adresse e-mail</label>
             <input 
+              id="email"
               type="email" 
               value={email} 
               onChange={e => setEmail(e.target.value)} 
@@ -43,8 +44,9 @@ export default function Login({ setToken, setUser }) {
             />
           </div>
           <div className="input-group">
-            <label>Mot de passe</label>
+            <label htmlFor="password">Mot de passe</label>
             <input 
+              id="password"
               type="password" 
               value={password} 
               onChange={e => setPassword(e.target.value)} 
