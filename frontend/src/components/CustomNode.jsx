@@ -10,7 +10,7 @@ export default function CustomNode({ id, data, selected }) {
   const [showBgPalette, setShowBgPalette] = useState(false);
   const [showTextPalette, setShowTextPalette] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const { setNodes, setEdges, getNodes, getEdges, deleteElements } = useReactFlow();
+  const { setNodes, deleteElements } = useReactFlow();
 
   useEffect(() => {
     if (!selected && isEditing) setIsEditing(false);
@@ -60,67 +60,8 @@ export default function CustomNode({ id, data, selected }) {
 
   const onAddChild = (evt, direction = 'right') => {
     if(evt) evt.stopPropagation();
-    const nodes = getNodes();
-    const edges = getEdges();
-    const parentNode = nodes.find(n => n.id === id);
-    if (!parentNode) return;
-
-    const newNodeId = `node_${Math.random().toString(36).substr(2, 9)}`;
-    const isLeft = direction === 'left';
-
-    // Calculate vertical offset relative to existing children on the SAME side
-    const sideChildrenEdges = edges.filter(e => e.source === id && (isLeft ? e.sourceHandle === 'source-left' : e.sourceHandle !== 'source-left'));
-    const sideChildrenNodes = nodes.filter(n => sideChildrenEdges.some(edge => edge.target === n.id));
-    
-    let newY = parentNode.position.y;
-    if (sideChildrenNodes.length > 0) {
-      const maxY = Math.max(...sideChildrenNodes.map(n => n.position.y + (n.height || 40)));
-      newY = maxY + 20;
-    }
-    
-    const parentBoxWidth = parentNode.width || 160;
-    const assumedChildWidth = 160;
-    const X_OFFSET = 60;
-    
-    const childX = isLeft 
-        ? parentNode.position.x - X_OFFSET - assumedChildWidth 
-        : parentNode.position.x + parentBoxWidth + X_OFFSET;
-
-    const newNode = {
-      id: newNodeId,
-      type: 'custom',
-      position: { 
-        x: childX, 
-        y: newY 
-      },
-      data: { label: 'Nouvelle idée' },
-    };
-
-    const newEdge = {
-      id: `edge_${id}_${newNodeId}`,
-      source: id,
-      target: newNodeId,
-      sourceHandle: isLeft ? 'source-left' : null,
-      targetHandle: isLeft ? 'target-right' : null,
-      animated: false,
-      style: { stroke: '#94a3b8', strokeWidth: 2 }
-    };
-
-    setNodes((nds) => {
-      const resetNodes = nds.map(n => {
-        let shiftedY = n.position.y;
-        // Mouvement "Moïse" : Tout ce qui est en dessous de la zone d'insertion sur le même côté est poussé vers le bas
-        const isOnSameSide = isLeft ? n.position.x < parentNode.position.x + 50 : n.position.x > parentNode.position.x - 50;
-        if (n.id !== parentNode.id && n.id !== newNodeId && isOnSameSide) {
-           if (n.position.y >= newY - 10) {
-               shiftedY += 60; // Crée un espace sécurisé de 60px
-           }
-        }
-        return { ...n, selected: false, position: { ...n.position, y: shiftedY } };
-      });
-      return [...resetNodes, { ...newNode, selected: true }];
-    });
-    setEdges((eds) => [...eds, newEdge]);
+    // Insertion et rangement de l'arbre gérés par MindMap (voir mindmapLayout.js)
+    data.addChildNode?.(id, direction);
   };
 
   useEffect(() => {
@@ -145,7 +86,7 @@ export default function CustomNode({ id, data, selected }) {
     return () => {
       window.removeEventListener('keydown', handleGlobalKeyDown);
     };
-  }, [selected, id, setNodes, setEdges, getNodes, label, bgColor, textColor, data.side]);
+  }, [selected, id, data.addChildNode, data.side]);
 
   return (
     <div 

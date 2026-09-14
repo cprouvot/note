@@ -7,7 +7,8 @@ const jwt = require('jsonwebtoken');
 const prisma = new PrismaClient();
 const app = express();
 
-app.use(cors());
+// L'en-tête du jeton renouvelé doit être lisible par le frontend (origine différente)
+app.use(cors({ exposedHeaders: ['X-Refreshed-Token'] }));
 app.use(express.json());
 
 const JWT_SECRET = process.env.JWT_SECRET || 'secret';

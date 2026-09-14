@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { api } from '../api';
 import './Login.css';
 
-export default function Login({ setToken, setUser }) {
-  const [email, setEmail] = useState('');
+// overlay : affichée par-dessus l'application (session expirée) sans perdre l'état en cours
+export default function Login({ setToken, setUser, onLogin, notice, initialEmail = '', overlay = false }) {
+  const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -18,20 +19,28 @@ export default function Login({ setToken, setUser }) {
       localStorage.setItem('mindboard_user', JSON.stringify(data.user));
       setToken(data.token);
       setUser(data.user);
+      onLogin?.(data.user);
     } catch (err) {
       setError(err.message || 'Erreur lors de la connexion');
-    } finally {
       setLoading(false);
+      return;
     }
+    setLoading(false);
   };
 
   return (
-    <div className="login-container">
+    <div
+      className={`login-container${overlay ? ' is-overlay' : ''}`}
+      role={overlay ? 'dialog' : undefined}
+      aria-modal={overlay ? 'true' : undefined}
+      aria-labelledby="login-title"
+    >
       <div className="login-box">
         <div className="login-logo">🧠 App</div>
-        <h2>Connexion</h2>
+        <h2 id="login-title">{overlay ? 'Session expirée' : 'Connexion'}</h2>
         <form onSubmit={handleSubmit} className="login-form">
-          {error && <div className="error-message">{error}</div>}
+          {notice && <div className="login-notice" role="status">{notice}</div>}
+          {error && <div className="error-message" role="alert">{error}</div>}
           <div className="input-group">
             <label>Adresse e-mail</label>
             <input 

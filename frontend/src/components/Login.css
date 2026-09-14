@@ -113,3 +113,26 @@
 .toggle-mode button:hover {
   text-decoration: underline;
 }
+
+/* Reconnexion après expiration : par-dessus l'application, qui reste montée (modifications conservées) */
+.login-container.is-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  width: auto;
+  height: auto;
+  box-sizing: border-box;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(2px);
+}
+
+.login-notice {
+  padding: 10px 12px;
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.4;
+  color: #1e3a8a;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+}
