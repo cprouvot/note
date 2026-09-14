@@ -201,8 +201,8 @@ export default function TodoSidebar() {
         api.getTasks(),
         api.getCategories()
       ]);
-      setTasks(tasksData);
-      if (catsData && catsData.length > 0) {
+      if (Array.isArray(tasksData)) setTasks(tasksData);
+      if (Array.isArray(catsData) && catsData.length > 0) {
         setCategories(catsData);
       }
     } catch (err) {

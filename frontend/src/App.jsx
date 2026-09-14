@@ -9,6 +9,7 @@ import TodoSidebar from './components/TodoSidebar';
 import Login from './components/Login';
 import AdminPanel from './components/AdminPanel';
 import { socket } from './socket';
+import { authEmitter, retryFailedMutations, hasFailedMutations, discardUnsavedChanges } from './api';
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem('mindboard_token'));
@@ -40,6 +41,34 @@ function App() {
       socket.disconnect();
     };
   }, [user]);
+
+  // Session expirée : l'application reste affichée (modifications conservées) sous une fenêtre de reconnexion
+  const [sessionExpired, setSessionExpired] = useState(false);
+  const [sessionKey, setSessionKey] = useState(0); // changer la clé recharge cartes et tâches
+
+  useEffect(() => {
+    const onExpired = () => {
+      localStorage.removeItem('mindboard_token'); // un rechargement de page mènera directement à la connexion
+      setSessionExpired(true);
+    };
+    authEmitter.addEventListener('expired', onExpired);
+    return () => authEmitter.removeEventListener('expired', onExpired);
+  }, []);
+
+  const handleReauthenticated = (newUser) => {
+    setSessionExpired(false);
+    if (newUser.id !== user?.id) {
+      // Autre compte : ne pas rejouer les modifications de l'ancien, tout recharger
+      discardUnsavedChanges();
+      setSessionKey(k => k + 1);
+    } else if (hasFailedMutations()) {
+      // Même compte, écran intact : renvoyer ce qui a échoué pendant l'expiration
+      retryFailedMutations();
+    } else {
+      // Rien à préserver : recharger (le chargement initial a pu échouer à cause de l'expiration)
+      setSessionKey(k => k + 1);
+    }
+  };
 
   const startResizing = useCallback((e) => {
     e.preventDefault();
@@ -89,8 +118,8 @@ function App() {
       style={{ cursor: isResizing ? 'ew-resize' : 'auto' }}
     >
       <main className="mindmap-area">
-        <MindMap />
-        
+        <MindMap key={sessionKey} />
+
         {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
 
         <div style={{ position: 'absolute', top: '16px', right: '16px', zIndex: 100, display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -246,8 +275,19 @@ function App() {
             className="resize-handle" 
             onMouseDown={startResizing}
           />
-          <TodoSidebar />
+          <TodoSidebar key={sessionKey} />
         </aside>
+      )}
+
+      {sessionExpired && (
+        <Login
+          overlay
+          setToken={setToken}
+          setUser={setUser}
+          onLogin={handleReauthenticated}
+          initialEmail={user.email}
+          notice="Votre session a expiré après une période d'inactivité. Vos modifications non enregistrées sont conservées et seront envoyées après la reconnexion."
+        />
       )}
     </div>
   );

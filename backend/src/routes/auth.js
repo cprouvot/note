@@ -1,11 +1,10 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
 const { PrismaClient } = require('@prisma/client');
+const { signToken } = require('../middleware/auth');
 
 const prisma = new PrismaClient();
 const router = express.Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 
 // Connexion
 router.post('/login', async (req, res) => {
@@ -22,7 +21,7 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Identifiants invalides.' });
     }
 
-    const token = jwt.sign({ id: user.id, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
+    const token = signToken(user);
     
     res.json({ token, user: { id: user.id, email: user.email, role: user.role } });
   } catch (error) {

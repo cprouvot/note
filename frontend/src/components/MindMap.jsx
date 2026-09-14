@@ -11,7 +11,7 @@ import ReactFlow, {
   useReactFlow,
   getRectOfNodes
 } from 'reactflow';
-import { Plus, Square, Type, Map as MapIcon, Camera, Image as ImageIcon, Cloud, CloudUpload, CheckCircle2 } from 'lucide-react';
+import { Plus, Square, Type, Map as MapIcon, Camera, Image as ImageIcon, Cloud, CloudUpload, CloudOff, CheckCircle2 } from 'lucide-react';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { SortableContext, horizontalListSortingStrategy, sortableKeyboardCoordinates, useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -21,8 +21,10 @@ import CustomNode from './CustomNode';
 import RectangleNode from './RectangleNode';
 import TextNode from './TextNode';
 import ImageNode from './ImageNode';
-import { api, syncEmitter } from '../api';
+import { api, syncEmitter, retryFailedMutations, schedulePendingSave, flushPendingSave, cancelPendingSave } from '../api';
+import { serializeBoardContent } from './boardSync';
 import { socket } from '../socket';
+import { computeTreeLayout, applyPositions, findTreeRoot, getNewChildPosition, COLLAPSE_KEYS } from './mindmapLayout';
 import './MindMap.css';
 
 const nodeTypes = {
@@ -82,8 +84,16 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
   const [nodes, setNodes] = useState(activeBoard.nodes || defaultNodes);
   const [edges, setEdges] = useState(activeBoard.edges || defaultEdges);
   const [menu, setMenu] = useState(null);
-  const [autoArrangeRootId, setAutoArrangeRootId] = useState(null);
+  // Rangements différés : rootId -> id d'un nœud à attendre (mesure React Flow) ou null
+  const pendingLayouts = useRef(new Map());
+  // Nœuds modifiés dans cet onglet : seuls leurs changements de taille déclenchent un rangement
+  // (évite des boucles de synchro entre navigateurs qui mesurent des tailles légèrement différentes)
+  const locallyEditedIds = useRef(new Set());
+  const scheduleLayout = (rootId, waitForNodeId = null) => {
+    if (!pendingLayouts.current.get(rootId)) pendingLayouts.current.set(rootId, waitForNodeId);
+  };
   const [syncState, setSyncState] = useState('saved');
+  const [syncError, setSyncError] = useState(null);
   const [showMiniMap, setShowMiniMap] = useState(() => {
     const saved = localStorage.getItem('mindboard_minimap');
     return saved !== null ? JSON.parse(saved) : false;
@@ -93,6 +103,12 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
   const [future, setFuture] = useState([]);
   const clipboardRef = useRef([]);
   const isUndoRedoAction = useRef(false);
+
+  // Évite de renvoyer au serveur une carte qui en provient (chargement ou mise à jour d'un autre onglet),
+  // sinon deux onglets ouverts sur la même carte se la renvoient indéfiniment.
+  const [initialContent] = useState(() => serializeBoardContent(nodes, edges));
+  const lastSyncedContent = useRef(initialContent); // dernier contenu connu du serveur
+  const appliedFromServer = useRef({ nodes, edges }); // tableaux tels que reçus du serveur
 
   // Synchronisation distante Socket.io
   useEffect(() => {
@@ -104,8 +120,11 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
       try {
         const remoteBoard = await api.getBoard(activeBoardId);
         if (remoteBoard && remoteBoard.nodes) {
+          const remoteEdges = remoteBoard.edges || [];
+          lastSyncedContent.current = serializeBoardContent(remoteBoard.nodes, remoteEdges);
+          appliedFromServer.current = { nodes: remoteBoard.nodes, edges: remoteEdges };
           setNodes(remoteBoard.nodes);
-          setEdges(remoteBoard.edges);
+          setEdges(remoteEdges);
           // Mettre également à jour le nom si on a un hook global, 
           // mais on fait simple pour les nodes pour éviter les loops de setBoards.
         }
@@ -203,7 +222,10 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
   }, [getNodes, setNodes, takeSnapshot, undo, redo]);
 
   useEffect(() => {
-    const handleSync = (e) => setSyncState(e.detail);
+    const handleSync = (e) => {
+      setSyncState(e.detail.status);
+      setSyncError(e.detail.error || null);
+    };
     syncEmitter.addEventListener('sync', handleSync);
     return () => syncEmitter.removeEventListener('sync', handleSync);
   }, []);
@@ -315,14 +337,36 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
   useEffect(() => {
     setBoards(prev => prev.map(b => b.id === activeBoardId ? { ...b, nodes, edges } : b));
     
-    if (activeBoardId) {
-       setSyncState('pending');
-       const timer = setTimeout(() => {
-          api.updateBoard(activeBoardId, { nodes, edges }).catch(console.error);
-       }, 1500); // Debouncer
-       return () => clearTimeout(timer);
+    if (!activeBoardId) return;
+    const saveKey = `board:${activeBoardId}`;
+
+    // État tel que reçu du serveur : rien à renvoyer (et une éventuelle sauvegarde locale en attente est caduque)
+    if (nodes === appliedFromServer.current.nodes && edges === appliedFromServer.current.edges) {
+      cancelPendingSave(saveKey);
+      setSyncState(state => state === 'pending' ? 'saved' : state);
+      return;
     }
+
+    setSyncState('pending');
+    schedulePendingSave(saveKey, () => {
+      // Contenu identique à la version serveur (mesures, sélection, annulation...) : pas d'envoi
+      const content = serializeBoardContent(nodes, edges);
+      if (content === lastSyncedContent.current) {
+        setSyncState(state => state === 'pending' ? 'saved' : state);
+        return;
+      }
+      api.updateBoard(activeBoardId, { nodes, edges })
+        .then(result => { if (result?.success) lastSyncedContent.current = content; })
+        .catch(console.error);
+    });
+    const timer = setTimeout(() => flushPendingSave(saveKey), 1500); // Debouncer
+    return () => clearTimeout(timer);
   }, [nodes, edges, activeBoardId]);
+
+  // Changement de carte ou démontage : envoyer la dernière sauvegarde au lieu de l'abandonner
+  useEffect(() => {
+    return () => flushPendingSave(`board:${activeBoardId}`);
+  }, [activeBoardId]);
 
   const onDownload = async () => {
     if (nodes.length === 0) return;
@@ -359,9 +403,25 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
   const onNodesChange = useCallback(
     (changes) => {
       if (!isUndoRedoAction.current && changes.some(c => c.type === 'remove')) takeSnapshot();
-      setNodes((nds) => applyNodeChanges(changes, nds));
+      setNodes((nds) => {
+        // Une idée éditée localement et déjà mesurée qui change de taille : ranger son arbre.
+        // La première mesure (chargement, nouvel enfant) est ignorée pour ne pas écraser les positions.
+        const currentEdges = getEdges();
+        for (const change of changes) {
+          if (change.type !== 'dimensions' || !change.dimensions) continue;
+          if (!locallyEditedIds.current.delete(change.id)) continue;
+          const prev = nds.find(n => n.id === change.id);
+          if (prev?.type !== 'custom' || !prev.width || !prev.height) continue;
+          const resized = Math.abs(prev.width - change.dimensions.width) > 1
+            || Math.abs(prev.height - change.dimensions.height) > 1;
+          if (resized && currentEdges.some(e => e.source === change.id || e.target === change.id)) {
+            scheduleLayout(findTreeRoot(change.id, currentEdges));
+          }
+        }
+        return applyNodeChanges(changes, nds);
+      });
     },
-    [setNodes, takeSnapshot]
+    [setNodes, takeSnapshot, getEdges]
   );
   const onEdgesChange = useCallback(
     (changes) => {
@@ -503,22 +563,20 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
       dx = finalNodePos.x - dragStartPos.x;
       dy = finalNodePos.y - dragStartPos.y;
       
-      setEdges(eds => {
-        const filtered = eds.filter(e => e.target !== node.id);
-        const newEdge = {
-          id: `edge_${newParent.id}_${node.id}_${Date.now()}`,
-          source: newParent.id,
-          target: node.id,
-          sourceHandle: isLeft ? 'source-left' : null,
-          targetHandle: isLeft ? 'target-right' : null,
-          animated: false,
-          style: { stroke: '#94a3b8', strokeWidth: 2 }
-        };
-        return [...filtered, newEdge];
-      });
-      
-      // On déclenche le rangement pour le prochain cycle de rendu
-      setTimeout(() => setAutoArrangeRootId('trigger'), 50);
+      const newEdge = {
+        id: `edge_${newParent.id}_${node.id}_${Date.now()}`,
+        source: newParent.id,
+        target: node.id,
+        sourceHandle: isLeft ? 'source-left' : null,
+        targetHandle: isLeft ? 'target-right' : null,
+        animated: false,
+        style: { stroke: '#94a3b8', strokeWidth: 2 }
+      };
+      const nextEdges = [...currentEdges.filter(e => e.target !== node.id), newEdge];
+      setEdges(nextEdges);
+
+      // Rangement de l'arbre d'accueil au prochain rendu
+      scheduleLayout(findTreeRoot(newParent.id, nextEdges));
     }
 
     setNodes(nds => nds.map(n => {
@@ -598,132 +656,84 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
     setMenu(null);
   };
 
-  const arrangeChildren = useCallback((forcedRootId = null) => {
-    const rootId = forcedRootId && typeof forcedRootId === 'string' && forcedRootId !== 'trigger' 
-       ? forcedRootId 
-       : (menu ? menu.id : (() => {
-           // Si pas de menu, on cherche le noeud racine global
-           const targetIds = edges.map(e => e.target);
-           const root = nodes.find(n => n.type === 'custom' && !targetIds.includes(n.id));
-           return root ? root.id : nodes[0]?.id;
-       })());
-
-    const rootNode = nodes.find(n => n.id === rootId);
-    if (!rootNode) {
-        if (menu) setMenu(null);
-        return;
+  // "Ranger les enfants" depuis le menu contextuel : le nœud cliqué sert de racine fixe
+  const arrangeChildren = useCallback(() => {
+    if (!menu) return;
+    const positions = computeTreeLayout(nodes, edges, menu.id);
+    if (Object.keys(positions).length > 0) {
+      takeSnapshot();
+      setNodes(nds => applyPositions(nds, positions));
     }
-    
+    setMenu(null);
+  }, [nodes, edges, menu, takeSnapshot]);
+
+  // Ajout d'un enfant (boutons + / Tab) : insertion puis rangement de tout l'arbre concerné
+  const addChildNode = useCallback((parentId, direction = 'right') => {
+    const currentNodes = getNodes();
+    const currentEdges = getEdges();
+    const parentNode = currentNodes.find(n => n.id === parentId);
+    if (!parentNode) return;
+
     takeSnapshot();
-
-    const getChildrenSubtree = (parentId, inheritedDirection) => {
-      let childEdges = edges.filter(e => e.source === parentId);
-      
-      // Trier les enfants par leur position Y actuelle pour respecter l'ordre visuel lors du rangement
-      childEdges.sort((a, b) => {
-        const nodeA = nodes.find(n => n.id === a.target);
-        const nodeB = nodes.find(n => n.id === b.target);
-        const yA = nodeA ? nodeA.position.y : 0;
-        const yB = nodeB ? nodeB.position.y : 0;
-        return yA - yB;
-      });
-
-      let children = [];
-      for (const edge of childEdges) {
-        let dir = inheritedDirection || (edge.sourceHandle === 'source-left' ? 'left' : 'right');
-        children.push({
-           id: edge.target,
-           direction: dir,
-           children: getChildrenSubtree(edge.target, dir)
-        });
-      }
-      return children;
+    const isLeft = direction === 'left';
+    const newNodeId = `node_${Math.random().toString(36).substr(2, 9)}`;
+    const newNode = {
+      id: newNodeId,
+      type: 'custom',
+      position: getNewChildPosition(parentNode, currentNodes, currentEdges, isLeft),
+      data: { label: 'Nouvelle idée' },
+      selected: true,
     };
-
-    const rootChildren = getChildrenSubtree(rootId, null);
-    if (rootChildren.length === 0) return setMenu(null);
-
-    const X_OFFSET = 60; // Espace horizontal entre les noeuds
-    const Y_OFFSET = 20; // Espace vertical entre les noeuds
-
-    const getNodeBox = (id) => {
-      const n = nodes.find(n => n.id === id);
-      return { width: n?.width || 160, height: n?.height || 40 };
+    const newEdge = {
+      id: `edge_${parentId}_${newNodeId}`,
+      source: parentId,
+      target: newNodeId,
+      sourceHandle: isLeft ? 'source-left' : null,
+      targetHandle: isLeft ? 'target-right' : null,
+      animated: false,
+      style: { stroke: '#94a3b8', strokeWidth: 2 }
     };
+    const nextEdges = [...currentEdges, newEdge];
 
-    const calculateSizes = (childrenArray) => {
-      let totalHeight = 0;
-      for (const child of childrenArray) {
-        const box = getNodeBox(child.id);
-        if (child.children.length === 0) {
-          child.treeHeight = box.height;
-        } else {
-          child.treeHeight = calculateSizes(child.children);
-          child.treeHeight = Math.max(child.treeHeight, box.height); // Le parent doit au moins rentrer
-        }
-        totalHeight += child.treeHeight;
-      }
-      if (childrenArray.length > 1) {
-         totalHeight += (childrenArray.length - 1) * Y_OFFSET;
-      }
-      return totalHeight;
-    };
+    // Déplier le côté concerné pour que le nouvel enfant soit visible
+    const collapseKey = isLeft ? 'collapsedLeft' : 'collapsedRight';
+    setNodes(nds => [
+      ...nds.map(n => {
+        const deselected = { ...n, selected: false };
+        return n.id === parentId && (n.data?.[collapseKey] || (!isLeft && n.data?.collapsed))
+          ? { ...deselected, data: { ...n.data, [collapseKey]: false, ...(isLeft ? {} : { collapsed: false }) } }
+          : deselected;
+      }),
+      newNode
+    ]);
+    setEdges(nextEdges);
+    pendingLayouts.current.set(findTreeRoot(parentId, nextEdges), newNodeId);
+  }, [getNodes, getEdges, takeSnapshot]);
 
-    const leftChildren = rootChildren.filter(c => c.direction === 'left');
-    const rightChildren = rootChildren.filter(c => c.direction === 'right');
-
-    calculateSizes(leftChildren);
-    calculateSizes(rightChildren);
-
-    const nodePositions = {};
-    const rootBox = getNodeBox(rootNode.id);
-
-    const positionChildren = (childrenArray, parentX, parentCenterY, parentBox, isLeft) => {
-      const totalHeight = childrenArray.reduce((sum, c) => sum + c.treeHeight, 0) + Math.max(0, childrenArray.length - 1) * Y_OFFSET;
-      let startY = parentCenterY - totalHeight / 2;
-
-      for (const child of childrenArray) {
-        const box = getNodeBox(child.id);
-        const childCenterY = startY + child.treeHeight / 2;
-        const childY = childCenterY - box.height / 2;
-        
-        const childX = isLeft 
-            ? parentX - X_OFFSET - box.width 
-            : parentX + parentBox.width + X_OFFSET;
-
-        nodePositions[child.id] = { x: childX, y: childY };
-        
-        positionChildren(child.children, childX, childCenterY, box, isLeft);
-        
-        startY += child.treeHeight + Y_OFFSET;
-      }
-    };
-
-    const rootCenterY = rootNode.position.y + rootBox.height / 2;
-    positionChildren(leftChildren, rootNode.position.x, rootCenterY, rootBox, true);
-    positionChildren(rightChildren, rootNode.position.x, rootCenterY, rootBox, false);
-
-    setNodes((nds) => 
-      nds.map(n => {
-        if (nodePositions[n.id] && n.id !== rootId) {
-          return { ...n, position: nodePositions[n.id] };
-        }
-        return n;
-      })
-    );
-    if (menu) setMenu(null);
-  }, [nodes, edges, menu, takeSnapshot, setNodes]);
-
+  // Exécute les rangements en attente une fois les nœuds attendus mesurés (largeur/hauteur réelles)
   useEffect(() => {
-    if (autoArrangeRootId === 'trigger' && nodes.length > 0 && edges.length > 0) {
-      arrangeChildren();
-      setAutoArrangeRootId(null);
+    if (pendingLayouts.current.size === 0) return;
+
+    let laidOutNodes = nodes;
+    for (const [rootId, waitForId] of pendingLayouts.current) {
+      const target = waitForId && nodes.find(n => n.id === waitForId);
+      if (target && (!target.width || !target.height)) continue;
+
+      pendingLayouts.current.delete(rootId);
+      laidOutNodes = applyPositions(laidOutNodes, computeTreeLayout(laidOutNodes, edges, rootId));
     }
-  }, [autoArrangeRootId, nodes, edges, arrangeChildren]);
+    if (laidOutNodes !== nodes) setNodes(laidOutNodes);
+  }, [nodes, edges]);
 
   const updateNodeData = useCallback((id, newData) => {
+    locallyEditedIds.current.add(id);
+    // Repli / dépli d'une branche : ranger l'arbre pour libérer ou réserver la place des enfants
+    if (COLLAPSE_KEYS.some(key => key in newData)) {
+      const currentEdges = getEdges();
+      if (currentEdges.some(e => e.source === id)) scheduleLayout(findTreeRoot(id, currentEdges));
+    }
     setNodes(nds => nds.map(n => n.id === id ? { ...n, data: { ...n.data, ...newData } } : n));
-  }, [setNodes]);
+  }, [setNodes, getEdges]);
 
   const { visibleNodes, visibleEdges } = useMemo(() => {
     const hiddenNodes = new Set();
@@ -777,12 +787,13 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
           hasLeftChildren: parentLeftIds.has(n.id),
           hasRightChildren: parentRightIds.has(n.id),
           side: sideMap.get(n.id) || 'root',
-          updateNodeData
+          updateNodeData,
+          addChildNode
         }
       })),
       visibleEdges: edges.map(e => ({ ...e, hidden: hiddenEdges.has(e.id), animated: false }))
     };
-  }, [nodes, edges, updateNodeData]);
+  }, [nodes, edges, updateNodeData, addChildNode]);
 
   return (
     <>
@@ -806,24 +817,36 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
         attributionPosition="bottom-right"
         deleteKeyCode={['Backspace', 'Delete']}
       >
-        <div style={{ 
-          position: 'absolute', 
-          bottom: '24px', 
-          left: '64px', 
-          zIndex: 100, 
-          display: 'flex', 
-          alignItems: 'center', 
+        <div
+          role={syncState === 'error' ? 'button' : 'status'}
+          aria-live="polite"
+          aria-label={syncState === 'error' ? `Échec de l'enregistrement : ${syncError}. Cliquer pour réessayer` : undefined}
+          onClick={syncState === 'error' ? retryFailedMutations : undefined}
+          style={{
+          position: 'absolute',
+          bottom: '24px',
+          left: '64px',
+          zIndex: 100,
+          display: 'flex',
+          alignItems: 'center',
           justifyContent: 'center',
-          color: syncState === 'saved' ? '#10b981' : 'var(--text-muted)', 
-          background: 'var(--panel-bg)', 
-          padding: '10px', 
-          borderRadius: '50%', 
-          boxShadow: 'var(--shadow-md)', 
-          border: '1px solid var(--border-color)',
+          color: syncState === 'saved' ? '#10b981' : syncState === 'error' ? '#ef4444' : 'var(--text-muted)',
+          background: 'var(--panel-bg)',
+          padding: '10px',
+          borderRadius: '50%',
+          boxShadow: 'var(--shadow-md)',
+          border: `1px solid ${syncState === 'error' ? '#ef4444' : 'var(--border-color)'}`,
+          cursor: syncState === 'error' ? 'pointer' : 'default',
           transition: 'color 0.3s'
-        }} title={syncState === 'syncing' ? 'Sauvegarde...' : syncState === 'pending' ? 'Modifications...' : 'Enregistré à l\'instant'}>
+        }} title={
+          syncState === 'syncing' ? 'Sauvegarde...'
+          : syncState === 'pending' ? 'Modifications...'
+          : syncState === 'error' ? `Non enregistré : ${syncError}\nCliquer pour réessayer`
+          : 'Enregistré à l\'instant'
+        }>
            {syncState === 'syncing' && <CloudUpload size={18} className="spin-icon" style={{ animation: 'spin 2s linear infinite' }} />}
            {syncState === 'pending' && <Cloud size={18} />}
+           {syncState === 'error' && <CloudOff size={18} />}
            {syncState === 'saved' && <CheckCircle2 size={18} />}
         </div>
 
