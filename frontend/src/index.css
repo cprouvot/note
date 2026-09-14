@@ -69,3 +69,8 @@ body {
     transform: rotate(360deg);
   }
 }
+
+/* Hauteur réelle de l'écran sur mobile (barre d'adresse, clavier) quand le navigateur la supporte */
+body {
+  height: 100dvh;
+}
