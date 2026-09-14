@@ -314,3 +314,103 @@
 .category-input::placeholder {
   color: #94a3b8;
 }
+
+/* ===== Écrans tactiles : actions toujours visibles, zones d'appui de 44 px ===== */
+.task-menu-btn,
+.category-menu-btn {
+  display: none;
+}
+
+@media (hover: none) {
+  .sidebar-container {
+    padding: 16px 12px 8px;
+  }
+  .sidebar-header {
+    margin-bottom: 12px;
+  }
+  .category-header {
+    min-height: 44px;
+    margin-bottom: 2px;
+    border-bottom-color: var(--border-color);
+  }
+  .category-header h3 {
+    font-size: 17px;
+  }
+  /* Les actions de catégorie sont regroupées dans le menu « ⋯ » */
+  .category-actions > button:not(.category-menu-btn) {
+    display: none;
+  }
+  .task-item {
+    align-items: center;
+    min-height: 44px;
+  }
+  .task-item:hover {
+    background-color: transparent;
+  }
+  /* Poignée visible ; déplacement par appui maintenu (TouchSensor) */
+  .drag-handle {
+    opacity: 1;
+    align-self: stretch;
+    min-width: 28px;
+    margin: 0;
+    touch-action: manipulation;
+  }
+  .task-checkbox-label {
+    align-items: center;
+    gap: 10px;
+  }
+  .task-checkbox-label input[type="checkbox"] {
+    width: 22px;
+    height: 22px;
+    margin: 0;
+  }
+  /* 16 px : lisible et évite le zoom automatique d'iOS à la saisie */
+  .task-inline-input {
+    font-size: 16px;
+    line-height: 1.4;
+    padding: 10px 4px;
+  }
+  /* Sous-tâche et suppression passent dans le menu « ⋯ » */
+  .add-task-btn,
+  .delete-task-btn {
+    display: none;
+  }
+  .task-menu-btn,
+  .category-menu-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+    padding: 0;
+    border: none;
+    border-radius: 8px;
+    background: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .task-menu-btn:active,
+  .category-menu-btn:active {
+    background-color: var(--bg-color);
+  }
+  .category-add-task-inline {
+    min-height: 44px;
+    margin-left: 28px;
+    font-size: 15px;
+  }
+  .empty-category-dropzone {
+    padding: 12px;
+  }
+  .category-input {
+    min-height: 44px;
+    font-size: 16px;
+  }
+}
+
+.task-menu-btn:focus-visible,
+.category-menu-btn:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: -2px;
+}

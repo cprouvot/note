@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { ListTodo, X, Menu, User, Moon, Sun } from 'lucide-react';
+import { ListTodo, X, Menu, User, Moon, Sun, LogOut, Shield } from 'lucide-react';
 /* CSS imported in MindMap */
 import './index.css';
 import './App.css';
@@ -8,6 +8,9 @@ import MindMap from './components/MindMap';
 import TodoSidebar from './components/TodoSidebar';
 import Login from './components/Login';
 import AdminPanel from './components/AdminPanel';
+import MobileNav from './components/MobileNav';
+import ActionSheet from './components/ActionSheet';
+import useMediaQuery from './hooks/useMediaQuery';
 import { socket } from './socket';
 import { authEmitter, retryFailedMutations, hasFailedMutations, discardUnsavedChanges } from './api';
 
@@ -28,6 +31,23 @@ function App() {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('mindboard_theme', theme);
   }, [theme]);
+
+  // Mobile : une vue à la fois (carte ou tâches), choisie via la barre en bas d'écran et mémorisée
+  const isMobile = useMediaQuery('(max-width: 768px)');
+  const [mobileView, setMobileView] = useState(() => {
+    try {
+      return localStorage.getItem('mindboard_mobile_view') === 'map' ? 'map' : 'tasks';
+    } catch {
+      return 'tasks';
+    }
+  });
+  const [accountSheetOpen, setAccountSheetOpen] = useState(false);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('mindboard_mobile_view', mobileView);
+    } catch { /* stockage indisponible : la vue n'est simplement pas mémorisée */ }
+  }, [mobileView]);
 
   // Gestion du Socket Globale
   useEffect(() => {
@@ -122,7 +142,8 @@ function App() {
 
         {showAdmin && <AdminPanel onClose={() => setShowAdmin(false)} />}
 
-        <div style={{ position: 'absolute', top: '16px', right: '16px', zIndex: 100, display: 'flex', gap: '8px', alignItems: 'center' }}>
+        {/* Masqués sur mobile (App.css) : remplacés par la barre de navigation en bas d'écran */}
+        <div className="desktop-toolbar" style={{ position: 'absolute', top: '16px', right: '16px', zIndex: 100, display: 'flex', gap: '8px', alignItems: 'center' }}>
           <div style={{ position: 'relative' }}>
             <button 
               onClick={() => setMenuOpen(!menuOpen)}
@@ -263,8 +284,8 @@ function App() {
 
       </main>
 
-      {isSidebarOpen && (
-        <aside 
+      {(isMobile ? mobileView === 'tasks' : isSidebarOpen) && (
+        <aside
           className="todo-sidebar-area" 
           style={{ 
             width: sidebarWidth, 
@@ -277,6 +298,30 @@ function App() {
           />
           <TodoSidebar key={sessionKey} />
         </aside>
+      )}
+
+      {isMobile && (
+        <MobileNav view={mobileView} onChange={setMobileView} onOpenAccount={() => setAccountSheetOpen(true)} />
+      )}
+
+      {isMobile && accountSheetOpen && (
+        <ActionSheet
+          title={user.email}
+          onClose={() => setAccountSheetOpen(false)}
+          actions={[
+            user.role === 'ADMIN' && {
+              label: 'Administration',
+              icon: <Shield size={20} />,
+              onSelect: () => { setShowAdmin(true); setMobileView('map'); }
+            },
+            {
+              label: theme === 'light' ? 'Activer le mode sombre' : 'Activer le mode clair',
+              icon: theme === 'light' ? <Moon size={20} /> : <Sun size={20} />,
+              onSelect: () => setTheme(theme === 'light' ? 'dark' : 'light')
+            },
+            { label: 'Déconnexion', icon: <LogOut size={20} />, danger: true, onSelect: handleLogout },
+          ]}
+        />
       )}
 
       {sessionExpired && (
