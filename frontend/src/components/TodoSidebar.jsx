@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Plus, Trash2, GripVertical, Copy, Check, Eraser } from 'lucide-react';
-import { DndContext, closestCorners, KeyboardSensor, PointerSensor, useSensor, useSensors, useDroppable } from '@dnd-kit/core';
+import { Plus, Trash2, GripVertical, Copy, Check, Eraser, Ellipsis, ChevronLeft, ChevronRight, CornerDownRight, FolderInput, ArrowUpToLine, RotateCcw } from 'lucide-react';
+import { DndContext, closestCorners, KeyboardSensor, MouseSensor, TouchSensor, useSensor, useSensors, useDroppable } from '@dnd-kit/core';
+import ActionSheet from './ActionSheet';
+
+// Texte brut d'une tâche (son contenu peut contenir du HTML)
+const plainText = (html) => (html || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { api } from '../api';
@@ -121,7 +125,21 @@ function EditableCategoryTitle({ category, categories, saveCategories, tasks, se
   );
 }
 
-function BasicTaskItem({ task, toggleTask, removeTask, updateTaskText, handleTaskKeyDown }) {
+// Bouton « ⋯ » : visible uniquement sur écran tactile (voir TodoSidebar.css), ouvre le menu d'actions
+function TaskMenuButton({ task, openTaskMenu }) {
+  return (
+    <button
+      className="task-menu-btn"
+      onClick={() => openTaskMenu(task)}
+      aria-label={`Actions pour « ${plainText(task.text) || 'tâche sans titre'} »`}
+      aria-haspopup="dialog"
+    >
+      <Ellipsis size={20} />
+    </button>
+  );
+}
+
+function BasicTaskItem({ task, toggleTask, removeTask, updateTaskText, handleTaskKeyDown, openTaskMenu }) {
   const style = {
     paddingLeft: `${(task.indentLevel || 0) * 24}px`,
     position: 'relative'
@@ -141,14 +159,17 @@ function BasicTaskItem({ task, toggleTask, removeTask, updateTaskText, handleTas
           handleTaskKeyDown={handleTaskKeyDown} 
         />
       </div>
-      <button className="delete-task-btn" onClick={() => removeTask(task.id)} title="Supprimer la tâche">
-        <Trash2 size={14} />
-      </button>
+      <div className="task-actions">
+        <TaskMenuButton task={task} openTaskMenu={openTaskMenu} />
+        <button className="delete-task-btn" onClick={() => removeTask(task.id)} title="Supprimer la tâche">
+          <Trash2 size={14} />
+        </button>
+      </div>
     </li>
   );
 }
 
-function SortableTaskItem({ task, toggleTask, removeTask, updateTaskText, handleTaskKeyDown, addSubTask }) {
+function SortableTaskItem({ task, toggleTask, removeTask, updateTaskText, handleTaskKeyDown, addSubTask, openTaskMenu }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: task.id, data: { category: task.category } });
 
   const style = {
@@ -178,6 +199,7 @@ function SortableTaskItem({ task, toggleTask, removeTask, updateTaskText, handle
         />
       </div>
       <div className="task-actions">
+        <TaskMenuButton task={task} openTaskMenu={openTaskMenu} />
         <button className="add-task-btn" onClick={() => addSubTask(task.id)} title="Créer une sous-tâche">
           <Plus size={14} />
         </button>
@@ -194,6 +216,8 @@ export default function TodoSidebar() {
   const [tasks, setTasks] = useState([]);
   const [newCategoryText, setNewCategoryText] = useState('');
   const [copiedCategory, setCopiedCategory] = useState(null);
+  // Menu d'actions tactile : { type: 'task' | 'move' | 'category' | 'completed', taskId?, category? }
+  const [menu, setMenu] = useState(null);
 
   const fetchTasksAndCategories = useCallback(async () => {
     try {
@@ -232,6 +256,27 @@ export default function TodoSidebar() {
   const removeTask = async (id) => {
     setTasks(tasks.filter(t => t.id !== id));
     await api.deleteTask(id).catch(console.error);
+  };
+
+  // Indentation sans clavier (menu tactile) : équivalent de Tab / Shift+Tab
+  const changeIndent = async (id, delta) => {
+    const task = tasks.find(t => t.id === id);
+    if (!task) return;
+    const indentLevel = Math.min(5, Math.max(0, (task.indentLevel || 0) + delta));
+    if (indentLevel === (task.indentLevel || 0)) return;
+    setTasks(currentTasks => currentTasks.map(t => t.id === id ? { ...t, indentLevel } : t));
+    await api.updateTask(id, { ...task, indentLevel }).catch(console.error);
+  };
+
+  // Déplacement sans glisser-déposer : la tâche passe en fin de catégorie cible, au premier niveau
+  const moveTaskToCategory = async (id, category) => {
+    const task = tasks.find(t => t.id === id);
+    if (!task || task.category === category) return;
+    const targetTasks = tasks.filter(t => t.category === category);
+    const orderIndex = targetTasks.length > 0 ? Math.max(...targetTasks.map(t => t.orderIndex)) + 1 : 0;
+    const movedTask = { ...task, category, orderIndex, indentLevel: 0 };
+    setTasks(currentTasks => [...currentTasks.filter(t => t.id !== id), movedTask]);
+    await api.updateTask(id, movedTask).catch(console.error);
   };
 
   const updateTaskText = async (id, text) => {
@@ -450,7 +495,9 @@ export default function TodoSidebar() {
   };
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
+    // Tactile : appui maintenu sur la poignée, pour ne pas confondre déplacement et défilement
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
@@ -535,6 +582,57 @@ export default function TodoSidebar() {
     }
   };
 
+  const openTaskMenu = (task) => setMenu({ type: 'task', taskId: task.id });
+  const openCategoryMenu = (category) => setMenu({ type: 'category', category });
+
+  const renderMenu = () => {
+    if (!menu) return null;
+    const closeMenu = () => setMenu(null);
+    const icon = (IconComponent) => React.createElement(IconComponent, { size: 20 });
+
+    if (menu.type === 'category' || menu.type === 'completed') {
+      const isCompleted = menu.type === 'completed';
+      const catTasks = isCompleted ? completedTasks : tasks.filter(t => t.category === menu.category && !t.done);
+      const hasAnyTask = isCompleted ? completedTasks.length > 0 : tasks.some(t => t.category === menu.category);
+      const actions = isCompleted ? [
+        { label: 'Copier les tâches terminées', icon: icon(Copy), disabled: catTasks.length === 0, onSelect: () => exportCategory('Tâches terminées', catTasks) },
+        { label: 'Vider les tâches terminées', icon: icon(Eraser), danger: true, disabled: !hasAnyTask, onSelect: clearCompletedTasks },
+      ] : [
+        { label: 'Ajouter une tâche en haut', icon: icon(ArrowUpToLine), onSelect: () => addEmptyTaskTop(menu.category) },
+        { label: 'Ajouter une tâche en bas', icon: icon(Plus), onSelect: () => addEmptyTask(menu.category) },
+        { label: 'Copier les tâches', icon: icon(Copy), disabled: catTasks.length === 0, onSelect: () => exportCategory(menu.category, catTasks) },
+        { label: 'Vider la catégorie', icon: icon(Eraser), danger: true, disabled: !hasAnyTask, onSelect: () => clearCategoryTasks(menu.category) },
+        { label: 'Supprimer la catégorie', icon: icon(Trash2), danger: true, onSelect: () => removeCategory(menu.category) },
+      ];
+      return <ActionSheet title={isCompleted ? 'Tâches terminées' : menu.category} actions={actions} onClose={closeMenu} />;
+    }
+
+    // Menus d'une tâche : relire la tâche à jour (elle a pu changer ou disparaître)
+    const task = tasks.find(t => t.id === menu.taskId);
+    if (!task) return null;
+    const title = plainText(task.text) || 'Tâche sans titre';
+
+    if (menu.type === 'move') {
+      const actions = categories
+        .filter(category => category !== task.category)
+        .map(category => ({ label: category, icon: icon(FolderInput), onSelect: () => moveTaskToCategory(task.id, category) }));
+      return <ActionSheet title={`Déplacer « ${title} » vers…`} actions={actions} onClose={closeMenu} />;
+    }
+
+    const actions = task.done ? [
+      { label: 'Remettre à faire', icon: icon(RotateCcw), onSelect: () => toggleTask(task.id) },
+      { label: 'Supprimer la tâche', icon: icon(Trash2), danger: true, onSelect: () => removeTask(task.id) },
+    ] : [
+      { label: 'Créer une sous-tâche', icon: icon(CornerDownRight), onSelect: () => addSubTask(task.id) },
+      { label: 'Indenter', icon: icon(ChevronRight), disabled: (task.indentLevel || 0) >= 5, onSelect: () => changeIndent(task.id, 1) },
+      { label: 'Désindenter', icon: icon(ChevronLeft), disabled: !task.indentLevel, onSelect: () => changeIndent(task.id, -1) },
+      { label: 'Déplacer vers une catégorie…', icon: icon(FolderInput), disabled: categories.length < 2, onSelect: () => setMenu({ type: 'move', taskId: task.id }) },
+      { label: 'Marquer comme terminée', icon: icon(Check), onSelect: () => toggleTask(task.id) },
+      { label: 'Supprimer la tâche', icon: icon(Trash2), danger: true, onSelect: () => removeTask(task.id) },
+    ];
+    return <ActionSheet title={title} actions={actions} onClose={closeMenu} />;
+  };
+
   return (
     <div className="sidebar-container">
       <div className="sidebar-header">
@@ -585,6 +683,14 @@ export default function TodoSidebar() {
                     >
                       <Trash2 size={14} />
                     </button>
+                    <button
+                      className="category-menu-btn"
+                      onClick={() => openCategoryMenu(category)}
+                      aria-label={`Actions de la catégorie ${category}`}
+                      aria-haspopup="dialog"
+                    >
+                      <Ellipsis size={20} />
+                    </button>
                   </div>
                 </div>
                 
@@ -599,6 +705,7 @@ export default function TodoSidebar() {
                         updateTaskText={updateTaskText}
                         handleTaskKeyDown={handleTaskKeyDown}
                         addSubTask={addSubTask}
+                        openTaskMenu={openTaskMenu}
                       />
                     ))}
                     {catTasks.length === 0 && (
@@ -637,6 +744,14 @@ export default function TodoSidebar() {
                 >
                   <Eraser size={14} />
                 </button>
+                <button
+                  className="category-menu-btn"
+                  onClick={() => setMenu({ type: 'completed' })}
+                  aria-label="Actions des tâches terminées"
+                  aria-haspopup="dialog"
+                >
+                  <Ellipsis size={20} />
+                </button>
               </div>
             </div>
             <ul className="task-list">
@@ -648,6 +763,7 @@ export default function TodoSidebar() {
                   removeTask={removeTask}
                   updateTaskText={updateTaskText}
                   handleTaskKeyDown={handleTaskKeyDown}
+                  openTaskMenu={openTaskMenu}
                 />
               ))}
             </ul>
@@ -666,6 +782,8 @@ export default function TodoSidebar() {
           />
         </form>
       </div>
+
+      {renderMenu()}
     </div>
   );
 }
