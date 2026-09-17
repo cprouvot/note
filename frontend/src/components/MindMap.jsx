@@ -24,7 +24,7 @@ import ImageNode from './ImageNode';
 import { api, syncEmitter, retryFailedMutations, schedulePendingSave, flushPendingSave, cancelPendingSave } from '../api';
 import { serializeBoardContent } from './boardSync';
 import { socket } from '../socket';
-import { computeTreeLayout, applyPositions, findTreeRoot, getNewChildPosition, COLLAPSE_KEYS } from './mindmapLayout';
+import { computeTreeLayout, applyPositions, findTreeRoot, getNewChildPosition, getDescendantIds, COLLAPSE_KEYS } from './mindmapLayout';
 import './MindMap.css';
 
 const nodeTypes = {
@@ -103,6 +103,8 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
   const [future, setFuture] = useState([]);
   const clipboardRef = useRef([]);
   const isUndoRedoAction = useRef(false);
+  // Suppression en cascade en cours : les liens sont retirés par nos soins, pas par React Flow
+  const isCascadeDelete = useRef(false);
 
   // Évite de renvoyer au serveur une carte qui en provient (chargement ou mise à jour d'un autre onglet),
   // sinon deux onglets ouverts sur la même carte se la renvoient indéfiniment.
@@ -402,7 +404,29 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
 
   const onNodesChange = useCallback(
     (changes) => {
-      if (!isUndoRedoAction.current && changes.some(c => c.type === 'remove')) takeSnapshot();
+      const removedIds = changes.filter(c => c.type === 'remove').map(c => c.id);
+      if (!isUndoRedoAction.current && removedIds.length > 0) takeSnapshot();
+
+      // Supprimer une idée supprime aussi tout ce qui en dépend (enfants, petits-enfants...)
+      if (removedIds.length > 0) {
+        const currentEdges = getEdges();
+        const deletedIds = new Set(removedIds.flatMap(id => [id, ...getDescendantIds(id, currentEdges)]));
+        const remainingEdges = currentEdges.filter(e => !deletedIds.has(e.source) && !deletedIds.has(e.target));
+
+        isCascadeDelete.current = true;
+        setTimeout(() => { isCascadeDelete.current = false; }, 0);
+        setEdges(remainingEdges);
+        setNodes(nds => applyNodeChanges(changes.filter(c => c.type !== 'remove'), nds)
+          .filter(n => !deletedIds.has(n.id)));
+
+        // Ranger les arbres amputés pour refermer l'espace laissé par la branche supprimée
+        const orphanedParents = new Set(currentEdges
+          .filter(e => deletedIds.has(e.target) && !deletedIds.has(e.source))
+          .map(e => e.source));
+        for (const parentId of orphanedParents) scheduleLayout(findTreeRoot(parentId, remainingEdges));
+        return;
+      }
+
       setNodes((nds) => {
         // Une idée éditée localement et déjà mesurée qui change de taille : ranger son arbre.
         // La première mesure (chargement, nouvel enfant) est ignorée pour ne pas écraser les positions.
@@ -421,11 +445,12 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
         return applyNodeChanges(changes, nds);
       });
     },
-    [setNodes, takeSnapshot, getEdges]
+    [setNodes, setEdges, takeSnapshot, getEdges]
   );
   const onEdgesChange = useCallback(
     (changes) => {
-      if (!isUndoRedoAction.current && changes.some(c => c.type === 'remove')) takeSnapshot();
+      // Pendant une cascade, les liens sont déjà retirés : pas de second point d'annulation
+      if (!isUndoRedoAction.current && !isCascadeDelete.current && changes.some(c => c.type === 'remove')) takeSnapshot();
       setEdges((eds) => applyEdgeChanges(changes, eds));
     },
     [setEdges, takeSnapshot]
