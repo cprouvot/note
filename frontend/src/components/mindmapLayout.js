@@ -32,7 +32,7 @@ export const findTreeRoot = (nodeId, edges) => {
   }
 };
 
-const getDescendantIds = (parentId, edges, visited = new Set([parentId])) => {
+export const getDescendantIds = (parentId, edges, visited = new Set([parentId])) => {
   const result = [];
   for (const edge of edges) {
     if (edge.source !== parentId || visited.has(edge.target)) continue;
