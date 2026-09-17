@@ -1,0 +1,5 @@
+# Surcharge locale de Docker Compose (ports, URL de l'API)
+docker-compose.override.yml
+
+# Configuration locale de Claude Code (serveurs de démonstration)
+.claude/
