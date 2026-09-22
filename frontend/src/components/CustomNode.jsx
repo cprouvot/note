@@ -4,20 +4,32 @@ import { Plus, Minus, Trash2 } from 'lucide-react';
 import RichTextEditor from './RichTextEditor';
 
 export default function CustomNode({ id, data, selected }) {
+  // Nœud tout juste créé (Tab ou bouton +) : il naît en édition, texte par défaut sélectionné
+  const { autoEdit, clearAutoEdit } = data;
   const [label, setLabel] = useState(data.label);
   const [bgColor, setBgColor] = useState(data.bgColor || '#ffffff');
   const [textColor, setTextColor] = useState(data.textColor || '#0f172a');
   const [showBgPalette, setShowBgPalette] = useState(false);
   const [showTextPalette, setShowTextPalette] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
+  const [isEditing, setIsEditing] = useState(Boolean(autoEdit));
+  const [selectTextOnEdit, setSelectTextOnEdit] = useState(Boolean(autoEdit));
   const { setNodes, deleteElements } = useReactFlow();
 
   useEffect(() => {
-    if (!selected && isEditing) setIsEditing(false);
+    if (!selected && isEditing) {
+      setIsEditing(false);
+      setSelectTextOnEdit(false);
+    }
   }, [selected, isEditing]);
+
+  // Le drapeau n'a servi qu'à la naissance du nœud : on le rend au parent
+  useEffect(() => {
+    if (autoEdit) clearAutoEdit?.();
+  }, [autoEdit, clearAutoEdit]);
 
   const onDoubleClick = (e) => {
     e.stopPropagation();
+    setSelectTextOnEdit(false);
     setIsEditing(true);
   };
 
@@ -179,6 +191,7 @@ export default function CustomNode({ id, data, selected }) {
           onChange={onChange}
           placeholder="Nouvelle idée"
           readOnly={!isEditing}
+          focusMode={selectTextOnEdit ? 'all' : 'end'}
         />
       </div>
 

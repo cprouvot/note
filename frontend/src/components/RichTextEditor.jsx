@@ -8,7 +8,8 @@ import Placeholder from '@tiptap/extension-placeholder';
 import TextAlign from '@tiptap/extension-text-align';
 import './RichTextEditor.css';
 
-export default function RichTextEditor({ content, onChange, placeholder = 'Tapez votre texte...', readOnly = false, className = '' }) {
+// focusMode : 'end' place le curseur en fin de texte, 'all' sélectionne tout (nouveau nœud : la frappe remplace)
+export default function RichTextEditor({ content, onChange, placeholder = 'Tapez votre texte...', readOnly = false, className = '', focusMode = 'end' }) {
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -39,6 +40,9 @@ export default function RichTextEditor({ content, onChange, placeholder = 'Tapez
     },
     content: content || '',
     editable: !readOnly,
+    // Éditeur créé déjà éditable (nouveau nœud) : l'effet de synchronisation ci-dessous
+    // ne se déclenchant qu'au changement, le focus initial se fait ici
+    autofocus: readOnly ? false : focusMode,
     onUpdate: ({ editor }) => {
       // Propagation de la chaîne HTML
       onChange(editor.getHTML());
@@ -57,11 +61,11 @@ export default function RichTextEditor({ content, onChange, placeholder = 'Tapez
     if (editor && editor.isEditable === readOnly) {
       editor.setEditable(!readOnly);
       if (!readOnly) {
-        // Quand on passe en édition, on auto-focus à la fin du texte
-        setTimeout(() => editor.commands.focus('end'), 10);
+        // Quand on passe en édition, on auto-focus (fin du texte, ou texte entier pour un nouveau nœud)
+        setTimeout(() => editor.commands.focus(focusMode), 10);
       }
     }
-  }, [readOnly, editor]);
+  }, [readOnly, editor, focusMode]);
 
   if (!editor) {
     return null;

@@ -94,6 +94,8 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
   };
   const [syncState, setSyncState] = useState('saved');
   const [syncError, setSyncError] = useState(null);
+  // Nœud à passer en édition dès son apparition (création via Tab ou bouton +)
+  const [autoEditNodeId, setAutoEditNodeId] = useState(null);
   const [showMiniMap, setShowMiniMap] = useState(() => {
     const saved = localStorage.getItem('mindboard_minimap');
     return saved !== null ? JSON.parse(saved) : false;
@@ -733,6 +735,7 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
     ]);
     setEdges(nextEdges);
     pendingLayouts.current.set(findTreeRoot(parentId, nextEdges), newNodeId);
+    setAutoEditNodeId(newNodeId);
   }, [getNodes, getEdges, takeSnapshot]);
 
   // Exécute les rangements en attente une fois les nœuds attendus mesurés (largeur/hauteur réelles)
@@ -749,6 +752,8 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
     }
     if (laidOutNodes !== nodes) setNodes(laidOutNodes);
   }, [nodes, edges]);
+
+  const clearAutoEdit = useCallback(() => setAutoEditNodeId(null), []);
 
   const updateNodeData = useCallback((id, newData) => {
     locallyEditedIds.current.add(id);
@@ -813,12 +818,14 @@ function MindMapCanvas({ activeBoardId, boards, setBoards }) {
           hasRightChildren: parentRightIds.has(n.id),
           side: sideMap.get(n.id) || 'root',
           updateNodeData,
-          addChildNode
+          addChildNode,
+          autoEdit: n.id === autoEditNodeId,
+          clearAutoEdit
         }
       })),
       visibleEdges: edges.map(e => ({ ...e, hidden: hiddenEdges.has(e.id), animated: false }))
     };
-  }, [nodes, edges, updateNodeData, addChildNode]);
+  }, [nodes, edges, updateNodeData, addChildNode, autoEditNodeId, clearAutoEdit]);
 
   return (
     <>

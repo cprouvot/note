@@ -199,14 +199,22 @@
   min-height: 20px;
   cursor: text;
   word-break: break-word;
+  /* Ancre le texte d'aide ci-dessous */
+  position: relative;
 }
 
+/* Texte d'aide hors du flux : une tâche vidée conserve un <br>, et un texte d'aide
+   en display:block le repousserait sur une seconde ligne (champ deux fois trop haut).
+   "padding: inherit" aligne le texte d'aide exactement sur le texte réel. */
 .content-editable-task:empty:before,
 .content-editable-task:has(br:only-child):before {
   content: attr(data-placeholder);
   color: #94a3b8;
   pointer-events: none;
-  display: block;
+  position: absolute;
+  inset: 0;
+  padding: inherit;
+  box-sizing: border-box;
 }
 
 .task-item.done .task-inline-input {
